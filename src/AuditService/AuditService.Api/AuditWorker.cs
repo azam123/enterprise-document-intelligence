@@ -2,6 +2,7 @@ using Azure.Messaging.ServiceBus;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Domain;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;
+using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
 namespace EnterpriseDocumentIntelligence.AuditService;
