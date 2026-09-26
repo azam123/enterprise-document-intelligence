@@ -1,4 +1,4 @@
-using Azure;using Azure.Messaging.ServiceBus;using System.Text.Json;using Microsoft.Extensions.Options;
+using Azure.Identity;using Azure.Messaging.ServiceBus;using System.Text.Json;using Microsoft.Extensions.Options;
 namespace EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
 public sealed class ServiceBusOptions{public string FullyQualifiedNamespace{get;set;}="";public string ConnectionString{get;set;}="";public int MaxConcurrentCalls{get;set;}=8;}
 public interface IMessagePublisher{Task PublishAsync<T>(string topic,T message,string correlationId,CancellationToken ct=default);}
