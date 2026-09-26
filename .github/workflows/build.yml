@@ -1,21 +1,54 @@
 name: build
 on: [push,pull_request]
+
 jobs:
-  build:
+  build-service:
+    name: Build ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: BuildingBlocks
+            project: src/BuildingBlocks/BuildingBlocks.csproj
+          - name: DocumentService
+            project: src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
+          - name: IngestionService
+            project: src/IngestionService/IngestionService.Api/IngestionService.Api.csproj
+          - name: ProcessingService
+            project: src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj
+          - name: EmbeddingService
+            project: src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj
+          - name: IndexingService
+            project: src/IndexingService/IndexingService.Api/IndexingService.Api.csproj
+          - name: SearchService
+            project: src/SearchService/SearchService.Api/SearchService.Api.csproj
+          - name: AgentService
+            project: src/AgentService/AgentService.Api/AgentService.Api.csproj
+          - name: McpGateway
+            project: src/McpGateway/McpGateway.Api/McpGateway.Api.csproj
+          - name: AuditService
+            project: src/AuditService/AuditService.Api/AuditService.Api.csproj
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Build every service
-        shell: bash
-        run: |
-          set -e
-          while IFS= read -r -d '' project; do
-            echo "Building $project"
-            dotnet restore "$project"
-            dotnet build "$project" --configuration Release --no-restore
-          done < <(find src -name '*.csproj' -print0)
+      - name: Restore
+        run: dotnet restore "${{ matrix.project }}"
+      - name: Build
+        run: dotnet build "${{ matrix.project }}" --configuration Release --no-restore
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    needs: build-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore test project
+        run: dotnet restore tests/Unit/Unit.csproj
       - name: Run unit tests
-        run: dotnet test tests/Unit/Unit.csproj --configuration Release
+        run: dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore --logger "trx;LogFileName=unit-tests.trx"
