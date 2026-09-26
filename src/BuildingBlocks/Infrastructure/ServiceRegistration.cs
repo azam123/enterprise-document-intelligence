@@ -1,3 +1,46 @@
-using Microsoft.EntityFrameworkCore;using Microsoft.Identity.Web;using Microsoft.AspNetCore.Authentication.JwtBearer;using Microsoft.AspNetCore.Builder;using Microsoft.Extensions.Configuration;using Microsoft.Extensions.DependencyInjection;using OpenTelemetry.Trace;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Web;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using OpenTelemetry.Trace;
+using EnterpriseDocumentIntelligence.BuildingBlocks.Security;
+
 namespace EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
-public static class ServiceRegistration{public static IServiceCollection AddBuildingBlocks(this IServiceCollection s,IConfiguration c,string service){s.AddHttpContextAccessor();s.AddScoped<EnterpriseDocumentIntelligence.BuildingBlocks.Security.ICurrentUser,EnterpriseDocumentIntelligence.BuildingBlocks.Security.CurrentUser>();s.Configure<ServiceBusOptions>(c.GetSection("ServiceBus"));s.AddSingleton<IMessagePublisher,ServiceBusPublisher>();var sql=c.GetConnectionString("SqlServer");if(!string.IsNullOrWhiteSpace(sql))s.AddDbContext<DocumentDbContext>(o=>o.UseSqlServer(sql,x=>x.EnableRetryOnFailure(5)));s.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddMicrosoftIdentityWebApi(c,"AzureAd");s.AddAuthorization(o=>o.FallbackPolicy=new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());s.AddOpenTelemetry().WithTracing(t=>t.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddOtlpExporter());return s;}public static void UseBuildingBlocks(this WebApplication a){a.UseMiddleware<ExceptionMiddleware>();a.UseAuthentication();a.UseAuthorization();}}
+
+public static class ServiceRegistration
+{
+    public static IServiceCollection AddBuildingBlocks(this IServiceCollection services, IConfiguration configuration, string serviceName)
+    {
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUser, CurrentUser>();
+        services.Configure<ServiceBusOptions>(configuration.GetSection("ServiceBus"));
+        services.AddSingleton<IMessagePublisher, ServiceBusPublisher>();
+
+        var connection = configuration.GetConnectionString("SqlServer");
+        if (!string.IsNullOrWhiteSpace(connection))
+            services.AddDbContext<DocumentDbContext>(o => o.UseSqlServer(connection, sql => sql.EnableRetryOnFailure(5)));
+
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddMicrosoftIdentityWebApi(configuration, "AzureAd");
+        services.AddAuthorization(options =>
+            options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser().Build());
+
+        services.AddOpenTelemetry()
+            .WithTracing(t => t
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddOtlpExporter());
+
+        return services;
+    }
+
+    public static void UseBuildingBlocks(this WebApplication app)
+    {
+        app.UseMiddleware<ExceptionMiddleware>();
+        app.UseAuthentication();
+        app.UseAuthorization();
+    }
+}
