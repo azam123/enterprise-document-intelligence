@@ -1,7 +1,2 @@
-var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHealthChecks();
-var app = builder.Build();
-app.MapHealthChecks("/health/live");
-app.MapHealthChecks("/health/ready");
-app.MapGet("/api/v1/processingservice/status", () => Results.Ok(new { service = "ProcessingService", status = "ready" }));
-app.Run();
+using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
+var builder=Host.CreateApplicationBuilder(args);builder.Services.AddBuildingBlocks(builder.Configuration,"ProcessingService");builder.Services.AddSingleton<ServiceBusClientFactory>();builder.Services.AddHostedService<Worker>();await builder.Build().RunAsync();
