@@ -11,7 +11,6 @@ public sealed class ServiceBusClientFactory(IConfiguration configuration)
     private readonly ServiceBusClient client = !string.IsNullOrWhiteSpace(configuration["ServiceBus:ConnectionString"])
         ? new ServiceBusClient(configuration["ServiceBus:ConnectionString"]!)
         : new ServiceBusClient(configuration["ServiceBus:FullyQualifiedNamespace"]!, new Azure.Identity.DefaultAzureCredential());
-
     public ServiceBusProcessor Create(string topic, string subscription) =>
         client.CreateProcessor(topic, subscription, new ServiceBusProcessorOptions { MaxConcurrentCalls = 8, PrefetchCount = 50, AutoCompleteMessages = false });
 }
@@ -35,11 +34,10 @@ public sealed class AuditWorker(ServiceBusClientFactory factory, DocumentDbConte
         {
             var message = JsonSerializer.Deserialize<AuditRequested>(args.Message.Body.ToString(), new JsonSerializerOptions(JsonSerializerDefaults.Web))
                 ?? throw new InvalidDataException("Invalid AuditRequested event.");
-            var exists = await db.AuditEvents.FindAsync([message.EventId], args.CancellationToken);
-            if (exists is null)
+            if (!await db.AuditEvents.AnyAsync(x => x.Id == message.EventId, args.CancellationToken))
             {
                 db.AuditEvents.Add(new AuditEvent(message.TenantId, message.ActorId, message.Action, message.ResourceType,
-                    message.ResourceId, message.Outcome, message.CorrelationId, message.MetadataJson));
+                    message.ResourceId, message.Outcome, message.CorrelationId, message.MetadataJson, message.EventId));
                 await db.SaveChangesAsync(args.CancellationToken);
             }
             await args.CompleteMessageAsync(args.Message);
