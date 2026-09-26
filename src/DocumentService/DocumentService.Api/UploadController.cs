@@ -1,4 +1,5 @@
 using EnterpriseDocumentIntelligence.BuildingBlocks.Security;
+using EnterpriseDocumentIntelligence.DocumentService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,8 +12,7 @@ public sealed class UploadController(DocumentApplication app) : ControllerBase
 {
     [HttpPost("upload")]
     [RequestSizeLimit(500L * 1024 * 1024)]
-    [ProducesResponseType(StatusCodes.Status202Accepted)]
-    public async Task<IActionResult> Upload(IFormFile file, CancellationToken ct)
+    public async Task<ActionResult<DocumentResponse>> Upload(IFormFile file, CancellationToken ct)
     {
         var result = await app.UploadAsync(file, ct);
         return AcceptedAtAction(nameof(DocumentsController.Get), "Documents", new { id = result.Id }, result);
