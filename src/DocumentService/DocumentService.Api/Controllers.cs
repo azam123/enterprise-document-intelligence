@@ -1,4 +1,5 @@
 using EnterpriseDocumentIntelligence.BuildingBlocks.Security;
+using EnterpriseDocumentIntelligence.DocumentService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,8 +12,6 @@ public sealed class DocumentsController(DocumentApplication app) : ControllerBas
 {
     [HttpGet("{id:guid}")]
     [Authorize(Roles = Roles.Reader + "," + Roles.Contributor + "," + Roles.Administrator)]
-    [ProducesResponseType(typeof(DocumentResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<DocumentResponse>> Get(Guid id, CancellationToken ct)
     {
         var result = await app.GetAsync(id, ct);
