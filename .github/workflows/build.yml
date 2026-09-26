@@ -1,0 +1,13 @@
+name: build
+on: [push,pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore src/BuildingBlocks/BuildingBlocks.csproj
+      - run: dotnet build src/BuildingBlocks/BuildingBlocks.csproj --configuration Release --no-restore
+      - run: dotnet test tests/Unit/Unit.csproj --configuration Release
