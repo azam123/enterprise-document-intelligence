@@ -8,6 +8,14 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - run: dotnet restore src/BuildingBlocks/BuildingBlocks.csproj
-      - run: dotnet build src/BuildingBlocks/BuildingBlocks.csproj --configuration Release --no-restore
-      - run: dotnet test tests/Unit/Unit.csproj --configuration Release
+      - name: Build every service
+        shell: bash
+        run: |
+          set -e
+          while IFS= read -r -d '' project; do
+            echo "Building $project"
+            dotnet restore "$project"
+            dotnet build "$project" --configuration Release --no-restore
+          done < <(find src -name '*.csproj' -print0)
+      - name: Run unit tests
+        run: dotnet test tests/Unit/Unit.csproj --configuration Release
