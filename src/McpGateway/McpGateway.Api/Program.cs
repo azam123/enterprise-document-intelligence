@@ -1,7 +1,1 @@
-var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHealthChecks();
-var app = builder.Build();
-app.MapHealthChecks("/health/live");
-app.MapHealthChecks("/health/ready");
-app.MapGet("/api/v1/mcpgateway/status", () => Results.Ok(new { service = "McpGateway", status = "ready" }));
-app.Run();
+using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;var builder=WebApplication.CreateBuilder(args);builder.Services.AddControllers();builder.Services.AddEndpointsApiExplorer();builder.Services.AddSwaggerGen();builder.Services.AddHealthChecks();builder.Services.AddBuildingBlocks(builder.Configuration,"McpGateway");var app=builder.Build();app.UseSwagger();app.UseSwaggerUI();app.UseHttpsRedirection();app.UseBuildingBlocks();app.MapControllers();app.MapHealthChecks("/health/live");app.MapHealthChecks("/health/ready");app.Run();
