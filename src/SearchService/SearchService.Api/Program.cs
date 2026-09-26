@@ -1,7 +1,1 @@
-var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHealthChecks();
-var app = builder.Build();
-app.MapHealthChecks("/health/live");
-app.MapHealthChecks("/health/ready");
-app.MapGet("/api/v1/searchservice/status", () => Results.Ok(new { service = "SearchService", status = "ready" }));
-app.Run();
+using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;var builder=WebApplication.CreateBuilder(args);builder.Services.AddControllers();builder.Services.AddEndpointsApiExplorer();builder.Services.AddSwaggerGen();builder.Services.AddHealthChecks();builder.Services.AddBuildingBlocks(builder.Configuration,"SearchService");var app=builder.Build();app.UseSwagger();app.UseSwaggerUI();app.UseHttpsRedirection();app.UseBuildingBlocks();app.MapControllers();app.MapHealthChecks("/health/live");app.MapHealthChecks("/health/ready");app.Run();
