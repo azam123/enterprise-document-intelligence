@@ -1,3 +1,36 @@
-using EnterpriseDocumentIntelligence.BuildingBlocks.Security;using Microsoft.AspNetCore.Authorization;using Microsoft.AspNetCore.Mvc;using System.Text.Json;
-public sealed record McpToolRequest(string Tool,JsonElement Arguments);public sealed record McpToolResponse(string Tool,string Status,string Result);
-[ApiController,Route("api/v1/mcp"),Authorize]public sealed class McpController(ICurrentUser user,ILogger<McpController> log):ControllerBase{static readonly HashSet<string> Allowed=["document.search","document.get","document.audit"];[HttpGet("tools")]public IActionResult Tools()=>Ok(Allowed.Select(x=>new{name=x,inputSchema=new{type="object"}}));[HttpPost("tools/call")]public async Task<ActionResult<McpToolResponse>>Call(McpToolRequest r,CancellationToken ct){if(!Allowed.Contains(r.Tool))return Forbid();if(r.Arguments.ValueKind==JsonValueKind.Undefined||r.Arguments.GetRawText().Length>32768)return BadRequest("Invalid or oversized arguments");log.LogInformation("MCP tool={Tool} Tenant={TenantId} User={UserId}",r.Tool,user.TenantId,user.UserId);await Task.Delay(1,ct);return Ok(new McpToolResponse(r.Tool,"Accepted","Tool execution is authorized at the MCP boundary; downstream resources must repeat tenant/resource authorization."));}}
+using EnterpriseDocumentIntelligence.BuildingBlocks.Security;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+
+namespace EnterpriseDocumentIntelligence.McpGateway.Api;
+
+public sealed record McpToolRequest(string Tool, JsonElement Arguments);
+public sealed record McpToolResponse(string Tool, string Status, object Result);
+
+[ApiController]
+[Route("api/v1/mcp")]
+[Authorize]
+public sealed class McpController(IMcpToolExecutor executor, ICurrentUser user) : ControllerBase
+{
+    private static readonly IReadOnlyDictionary<string, object> ToolDefinitions = new Dictionary<string, object>
+    {
+        ["document.search"] = new { name = "document.search", description = "Search authorized enterprise documents.", inputSchema = new { type = "object", properties = new { query = new { type = "string" }, topK = new { type = "integer" } }, required = new[] { "query" } } },
+        ["document.get"] = new { name = "document.get", description = "Get one authorized document.", inputSchema = new { type = "object", properties = new { documentId = new { type = "string", format = "uuid" } }, required = new[] { "documentId" } } },
+        ["document.audit"] = new { name = "document.audit", description = "Read tenant audit events.", inputSchema = new { type = "object", properties = new { from = new { type = "string", format = "date-time" } } } }
+    };
+
+    [HttpGet("tools")]
+    public IActionResult Tools() => Ok(ToolDefinitions.Values);
+
+    [HttpPost("tools/call")]
+    public async Task<ActionResult<McpToolResponse>> Call(McpToolRequest request, CancellationToken ct)
+    {
+        if (!ToolDefinitions.ContainsKey(request.Tool)) return NotFound();
+        if (request.Arguments.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null || request.Arguments.GetRawText().Length > 32768)
+            return BadRequest("Invalid or oversized arguments.");
+
+        var result = await executor.ExecuteAsync(request.Tool, request.Arguments, ct);
+        return Ok(new McpToolResponse(request.Tool, "Executed", result));
+    }
+}

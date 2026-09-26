@@ -1,3 +1,74 @@
-using Azure.Messaging.ServiceBus;using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;using System.Text.Json;
-public sealed class ServiceBusClientFactory(IConfiguration c){readonly ServiceBusClient client=!string.IsNullOrWhiteSpace(c["ServiceBus:ConnectionString"])?new(c["ServiceBus:ConnectionString"]!):new(c["ServiceBus:FullyQualifiedNamespace"]!,new Azure.Identity.DefaultAzureCredential());public ServiceBusProcessor Create(string t,string s)=>client.CreateProcessor(t,s,new ServiceBusProcessorOptions{MaxConcurrentCalls=8,PrefetchCount=50,AutoCompleteMessages=false});}
-public sealed class Worker(ServiceBusClientFactory factory,IMessagePublisher publisher,ILogger<Worker> log):BackgroundService{protected override async Task ExecuteAsync(CancellationToken ct){var p=factory.Create("ingestion-events","processing-sub");p.ProcessMessageAsync+=Handle;p.ProcessErrorAsync+=Error;await p.StartProcessingAsync(ct);try{await Task.Delay(Timeout.Infinite,ct);}catch(OperationCanceledException){}finally{await p.StopProcessingAsync();await p.DisposeAsync();}}async Task Handle(ProcessMessageEventArgs a){try{var m=JsonSerializer.Deserialize<DocumentIngestionCompleted>(a.Message.Body.ToString(),new JsonSerializerOptions(JsonSerializerDefaults.Web))??throw new InvalidOperationException("Invalid event");log.LogInformation("Processing DocumentIngestionCompleted Document={DocumentId} Correlation={CorrelationId}",m.DocumentId,m.CorrelationId);var chunks=Enumerable.Range(0,5).Select(i=>new ChunkContract(Guid.NewGuid(),i,$"Normalized chunk {i} for {m.DocumentId}",12)).ToArray();await publisher.PublishAsync(Topics.ProcessingEvents,new DocumentProcessed(Guid.NewGuid(),m.TenantId,m.DocumentId,m.VersionId,chunks,DateTimeOffset.UtcNow,m.CorrelationId),m.CorrelationId,a.CancellationToken);await a.CompleteMessageAsync(a.Message);}catch(Exception ex){log.LogError(ex,"Worker failure MessageId={MessageId}",a.Message.MessageId);if(a.Message.DeliveryCount>=5)await a.DeadLetterMessageAsync(a.Message,"max-delivery",ex.Message);else await a.AbandonMessageAsync(a.Message);}}Task Error(ProcessErrorEventArgs e){log.LogError(e.Exception,"Service Bus error Entity={Entity}",e.EntityPath);return Task.CompletedTask;}}
+using Azure.Messaging.ServiceBus;
+using Azure.Storage.Blobs;
+using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
+using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;
+using System.Text.Json;
+
+namespace EnterpriseDocumentIntelligence.ProcessingService;
+
+public sealed class ServiceBusClientFactory(IConfiguration configuration)
+{
+    private readonly ServiceBusClient client = !string.IsNullOrWhiteSpace(configuration["ServiceBus:ConnectionString"])
+        ? new ServiceBusClient(configuration["ServiceBus:ConnectionString"]!)
+        : new ServiceBusClient(configuration["ServiceBus:FullyQualifiedNamespace"]!, new Azure.Identity.DefaultAzureCredential());
+
+    public ServiceBusProcessor Create(string topic, string subscription) =>
+        client.CreateProcessor(topic, subscription, new ServiceBusProcessorOptions { MaxConcurrentCalls = 8, PrefetchCount = 50, AutoCompleteMessages = false });
+}
+
+public sealed class Worker(
+    ServiceBusClientFactory factory,
+    BlobServiceClient blobs,
+    SemanticChunker chunker,
+    IMessagePublisher publisher,
+    ILogger<Worker> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var processor = factory.Create(Topics.IngestionEvents, "processing-sub");
+        processor.ProcessMessageAsync += HandleAsync;
+        processor.ProcessErrorAsync += OnErrorAsync;
+        await processor.StartProcessingAsync(stoppingToken);
+        try { await Task.Delay(Timeout.Infinite, stoppingToken); }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        finally { await processor.StopProcessingAsync(); await processor.DisposeAsync(); }
+    }
+
+    private async Task HandleAsync(ProcessMessageEventArgs args)
+    {
+        try
+        {
+            var message = JsonSerializer.Deserialize<DocumentIngestionCompleted>(
+                args.Message.Body.ToString(), new JsonSerializerOptions(JsonSerializerDefaults.Web))
+                ?? throw new InvalidDataException("Invalid DocumentIngestionCompleted event.");
+
+            var blob = new BlobClient(new Uri(message.ExtractedTextUri), new Azure.Identity.DefaultAzureCredential());
+            var response = await blob.DownloadStreamingAsync(cancellationToken: args.CancellationToken);
+            using var reader = new StreamReader(response.Value.Content);
+            var text = await reader.ReadToEndAsync(args.CancellationToken);
+            var chunks = chunker.Chunk(text);
+
+            await publisher.PublishAsync(
+                Topics.ProcessingEvents,
+                new DocumentProcessed(Guid.NewGuid(), message.TenantId, message.DocumentId, message.VersionId,
+                    chunks, DateTimeOffset.UtcNow, message.CorrelationId),
+                message.CorrelationId,
+                args.CancellationToken);
+
+            await args.CompleteMessageAsync(args.Message);
+            logger.LogInformation("Processed document {DocumentId} into {Count} chunks", message.DocumentId, chunks.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Processing failed MessageId={MessageId}", args.Message.MessageId);
+            if (args.Message.DeliveryCount >= 5) await args.DeadLetterMessageAsync(args.Message, "max-delivery", ex.Message);
+            else await args.AbandonMessageAsync(args.Message);
+        }
+    }
+
+    private Task OnErrorAsync(ProcessErrorEventArgs args)
+    {
+        logger.LogError(args.Exception, "Processing Service Bus error Entity={Entity}", args.EntityPath);
+        return Task.CompletedTask;
+    }
+}

@@ -1,27 +1,26 @@
 using Azure.Messaging.ServiceBus;
-using Azure.Search.Documents;
-using Azure.Search.Documents.Models;
+using EnterpriseDocumentIntelligence.BuildingBlocks.Domain;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;
+using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
-namespace EnterpriseDocumentIntelligence.IndexingService;
+namespace EnterpriseDocumentIntelligence.AuditService;
 
 public sealed class ServiceBusClientFactory(IConfiguration configuration)
 {
     private readonly ServiceBusClient client = !string.IsNullOrWhiteSpace(configuration["ServiceBus:ConnectionString"])
         ? new ServiceBusClient(configuration["ServiceBus:ConnectionString"]!)
         : new ServiceBusClient(configuration["ServiceBus:FullyQualifiedNamespace"]!, new Azure.Identity.DefaultAzureCredential());
-
     public ServiceBusProcessor Create(string topic, string subscription) =>
         client.CreateProcessor(topic, subscription, new ServiceBusProcessorOptions { MaxConcurrentCalls = 8, PrefetchCount = 50, AutoCompleteMessages = false });
 }
 
-public sealed class Worker(ServiceBusClientFactory factory, SearchClient index, ILogger<Worker> logger) : BackgroundService
+public sealed class AuditWorker(ServiceBusClientFactory factory, DocumentDbContext db, ILogger<AuditWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var processor = factory.Create(Topics.EmbeddingEvents, "indexing-sub");
+        var processor = factory.Create(Topics.AuditEvents, "audit-sub");
         processor.ProcessMessageAsync += HandleAsync;
         processor.ProcessErrorAsync += OnErrorAsync;
         await processor.StartProcessingAsync(stoppingToken);
@@ -34,32 +33,23 @@ public sealed class Worker(ServiceBusClientFactory factory, SearchClient index, 
     {
         try
         {
-            var message = JsonSerializer.Deserialize<EmbeddingsCreated>(
-                args.Message.Body.ToString(), new JsonSerializerOptions(JsonSerializerDefaults.Web))
-                ?? throw new InvalidDataException("Invalid EmbeddingsCreated event.");
-
-            var batch = IndexDocumentsBatch<SearchDocument>();
-            foreach (var chunk in message.Chunks)
-                batch.Actions.Add(IndexDocumentsAction.Upload(
-                    IndexDocumentFactory.Create(message.TenantId, message.DocumentId, message.VersionId, chunk, message.AllowedPrincipalIds)));
-
-            if (batch.Actions.Count > 0)
-                await index.IndexDocumentsAsync(batch, cancellationToken: args.CancellationToken);
-
+            var message = JsonSerializer.Deserialize<AuditRequested>(args.Message.Body.ToString(), new JsonSerializerOptions(JsonSerializerDefaults.Web))
+                ?? throw new InvalidDataException("Invalid AuditRequested event.");
+            if (!await db.AuditEvents.AnyAsync(x => x.Id == message.EventId, args.CancellationToken))
+            {
+                db.AuditEvents.Add(new AuditEvent(message.TenantId, message.ActorId, message.Action, message.ResourceType,
+                    message.ResourceId, message.Outcome, message.CorrelationId, message.MetadataJson, message.EventId));
+                await db.SaveChangesAsync(args.CancellationToken);
+            }
             await args.CompleteMessageAsync(args.Message);
-            logger.LogInformation("Indexed {Count} chunks Document={DocumentId}", message.Chunks.Count, message.DocumentId);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Indexing failed MessageId={MessageId}", args.Message.MessageId);
+            logger.LogError(ex, "Audit event processing failed");
             if (args.Message.DeliveryCount >= 5) await args.DeadLetterMessageAsync(args.Message, "max-delivery", ex.Message);
             else await args.AbandonMessageAsync(args.Message);
         }
     }
 
-    private Task OnErrorAsync(ProcessErrorEventArgs args)
-    {
-        logger.LogError(args.Exception, "Indexing Service Bus error Entity={Entity}", args.EntityPath);
-        return Task.CompletedTask;
-    }
+    private Task OnErrorAsync(ProcessErrorEventArgs args) { logger.LogError(args.Exception, "Audit Service Bus error"); return Task.CompletedTask; }
 }

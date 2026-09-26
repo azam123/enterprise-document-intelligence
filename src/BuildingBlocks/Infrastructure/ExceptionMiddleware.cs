@@ -1,3 +1,32 @@
-using System.Text.Json;using Microsoft.AspNetCore.Http;using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
+
 namespace EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
-public sealed class ExceptionMiddleware(RequestDelegate next,ILogger<ExceptionMiddleware> log){public async Task Invoke(HttpContext c){try{await next(c);}catch(UnauthorizedAccessException ex){log.LogWarning(ex,"Unauthorized request");await Write(c,401,"Unauthorized");}catch(ArgumentException ex){log.LogWarning(ex,"Validation failure");await Write(c,400,ex.Message);}catch(Exception ex){log.LogError(ex,"Unhandled exception TraceId={TraceId}",c.TraceIdentifier);await Write(c,500,"Unexpected server error");}}static async Task Write(HttpContext c,int status,string title){c.Response.StatusCode=status;c.Response.ContentType="application/problem+json";await c.Response.WriteAsync(JsonSerializer.Serialize(new{type=$"https://httpstatuses.com/{status}",title,status,traceId=c.TraceIdentifier}));}}
+
+public sealed class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> logger)
+{
+    public async Task Invoke(HttpContext context)
+    {
+        try { await next(context); }
+        catch (UnauthorizedAccessException ex) { logger.LogWarning(ex, "Unauthorized request"); await Write(context, 401, "Unauthorized", ex.Message); }
+        catch (KeyNotFoundException ex) { logger.LogInformation(ex, "Resource not found"); await Write(context, 404, "Not Found", ex.Message); }
+        catch (ArgumentException ex) { logger.LogInformation(ex, "Validation failure"); await Write(context, 400, "Validation Failed", ex.Message); }
+        catch (InvalidOperationException ex) { logger.LogInformation(ex, "Invalid operation"); await Write(context, 409, "Conflict", ex.Message); }
+        catch (Exception ex) { logger.LogError(ex, "Unhandled exception TraceId={TraceId}", context.TraceIdentifier); await Write(context, 500, "Unexpected server error", "An unexpected error occurred."); }
+    }
+
+    private static async Task Write(HttpContext context, int status, string title, string detail)
+    {
+        context.Response.StatusCode = status;
+        context.Response.ContentType = "application/problem+json";
+        await context.Response.WriteAsync(JsonSerializer.Serialize(new
+        {
+            type = $"https://httpstatuses.com/{status}",
+            title,
+            status,
+            detail,
+            traceId = context.TraceIdentifier
+        }));
+    }
+}
