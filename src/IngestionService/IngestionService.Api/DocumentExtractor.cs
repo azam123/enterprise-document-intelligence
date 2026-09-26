@@ -6,17 +6,14 @@ using System.Xml.Linq;
 
 namespace EnterpriseDocumentIntelligence.IngestionService;
 
-public interface IDocumentExtractor
-{
-    Task<string> ExtractAsync(Stream content, string contentType, CancellationToken ct);
-}
+public interface IDocumentExtractor { Task<string> ExtractAsync(Stream content, string contentType, CancellationToken ct); }
 
 public sealed class DocumentExtractor(HttpClient http, IConfiguration configuration) : IDocumentExtractor
 {
     public async Task<string> ExtractAsync(Stream content, string contentType, CancellationToken ct)
     {
         if (contentType.Equals("text/plain", StringComparison.OrdinalIgnoreCase))
-            return await new StreamReader(content, Encoding.UTF8, leaveOpen: true).ReadToEndAsync(ct);
+            return await new StreamReader(content, Encoding.UTF8, true, 1024, true).ReadToEndAsync(ct);
         if (contentType.Equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document", StringComparison.OrdinalIgnoreCase))
             return ExtractDocx(content);
         if (contentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase) || contentType.Equals("application/msword", StringComparison.OrdinalIgnoreCase))
