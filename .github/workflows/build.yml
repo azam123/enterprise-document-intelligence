@@ -52,6 +52,9 @@ jobs:
           )
           for project in "${projects[@]}"; do dotnet build "$project" --configuration Release --no-restore; done
 
+      - name: Restore unit-test project
+        run: dotnet restore tests/Unit/Unit.csproj
+
       - name: Run per-service unit tests and enforce 90 percent line coverage
         shell: bash
         run: |
