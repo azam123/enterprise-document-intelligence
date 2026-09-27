@@ -16,8 +16,8 @@ public sealed class DocumentApp(DocumentDbContext db,ICurrentUser user,IMessageP
   if(user.TenantId==Guid.Empty)throw new UnauthorizedAccessException();
   if(string.IsNullOrWhiteSpace(r.Name))throw new ArgumentException("Name is required");
   if(r.SizeBytes<=0||r.SizeBytes>524288000)throw new ArgumentException("Invalid document size");
-  var d=new Document(user.TenantId,r.Name,r.ContentType,r.SizeBytes);var v=new DocumentVersion(d.Id,1,$"documents/{user.TenantId}/{d.Id}/1","",r.SizeBytes);d.Versions.Add(v);d.SetCurrentVersion(v.Id);d.MarkProcessing();db.Documents.Add(d);await db.SaveChangesAsync(ct);
-  var cid=user.CorrelationId??Guid.NewGuid().ToString("N");await bus.PublishAsync(Topics.DocumentEvents,new DocumentUploaded(Guid.NewGuid(),d.TenantId,d.Id,v.Id,v.BlobUri,d.ContentType,d.SizeBytes,DateTimeOffset.UtcNow,cid,[]),cid,ct);
+  var d=new Document(user.TenantId,r.Name,r.ContentType,r.SizeBytes);var v=new DocumentVersion(d.Id,1,"","",r.SizeBytes);d.Versions.Add(v);d.SetCurrentVersion(v.Id);db.Documents.Add(d);await db.SaveChangesAsync(ct);
+  var cid=user.CorrelationId??Guid.NewGuid().ToString("N");
   await bus.PublishAsync(Topics.AuditEvents,new AuditRequested(Guid.NewGuid(),d.TenantId,user.UserId,"document.create","Document",d.Id,"Succeeded",cid,null),cid,ct);
   log.LogInformation("Created document {DocumentId} Tenant={TenantId}",d.Id,d.TenantId);return new(d.Id,d.TenantId,d.Name,d.ContentType,d.SizeBytes,d.Status,d.CurrentVersionId);
  }
