@@ -63,7 +63,7 @@ jobs:
           /p:Threshold=90
           /p:ThresholdType=line
           /p:ThresholdStat=total
-          /p:ExcludeByFile="**/Program.cs,**/*Controller.cs,**/Worker.cs,**/AzureOpenAiEmbeddingClient.cs,**/McpToolExecutor.cs,**/AgentHarness.cs,**/IndexProvisioner.cs,**/DocumentApplication.cs,**/UploadController.cs,**/ServiceBus.cs,**/ServiceRegistration.cs,**/ExceptionMiddleware.cs,**/DbContext.cs"
+          /p:ExcludeByFile="**/Program.cs;**/*Controller.cs;**/Worker.cs;**/AzureOpenAiEmbeddingClient.cs;**/McpToolExecutor.cs;**/AgentHarness.cs;**/IndexProvisioner.cs;**/DocumentApplication.cs;**/UploadController.cs;**/ServiceBus.cs;**/ServiceRegistration.cs;**/ExceptionMiddleware.cs;**/DbContext.cs"
 
       - name: Publish BuildingBlocks
         run: dotnet publish src/BuildingBlocks/BuildingBlocks.csproj --configuration Release --output artifacts/BuildingBlocks
