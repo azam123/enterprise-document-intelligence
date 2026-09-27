@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using System.IO.Compression;
 using System.Text;
 using System.Xml.Linq;
