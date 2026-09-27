@@ -1,2 +1,46 @@
-using Azure.Storage.Blobs;using EnterpriseDocumentIntelligence.BuildingBlocks.Domain;using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;using EnterpriseDocumentIntelligence.BuildingBlocks.Security;using Microsoft.AspNetCore.Authorization;using Microsoft.AspNetCore.Mvc;using System.Security.Cryptography;
-[ApiController,Route("api/v1/documents"),Authorize]public sealed class DocumentUploadController(BlobServiceClient blobs,DocumentDbContext db,ICurrentUser user,IMessagePublisher bus,ILogger<DocumentUploadController> log):ControllerBase{[HttpPost("upload")][RequestSizeLimit(524288000)][Authorize(Roles=Roles.Contributor+","+Roles.Administrator)]public async Task<IActionResult>Upload(IFormFile file,CancellationToken ct){if(file is null||file.Length==0)return BadRequest("File is required");if(file.Length>524288000)return BadRequest("Maximum file size is 500 MB");var allowed=new[]{"application/pdf","text/plain","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/msword"};if(!allowed.Contains(file.ContentType,StringComparer.OrdinalIgnoreCase))return BadRequest("Unsupported document type");var d=new Document(user.TenantId,file.FileName,file.ContentType,file.Length);var v=new DocumentVersion(d.Id,1,"","",file.Length);d.Versions.Add(v);d.SetCurrentVersion(v.Id);d.MarkProcessing();var container=blobs.GetBlobContainerClient("documents");await container.CreateIfNotExistsAsync(cancellationToken:ct);var blob=container.GetBlobClient($"{user.TenantId}/{d.Id}/1/{Uri.EscapeDataString(file.FileName)}");await using(var hashStream=file.OpenReadStream()){var hash=await SHA256.HashDataAsync(hashStream,ct);v=new DocumentVersion(d.Id,1,blob.Uri.ToString(),Convert.ToHexString(hash),file.Length);}await using(var uploadStream=file.OpenReadStream()){await blob.UploadAsync(uploadStream,overwrite:false,ct);}d.Versions.Clear();d.Versions.Add(v);d.SetCurrentVersion(v.Id);db.Documents.Add(d);await db.SaveChangesAsync(ct);var correlation=user.CorrelationId??Guid.NewGuid().ToString("N");await bus.PublishAsync(Topics.DocumentEvents,new DocumentUploaded(Guid.NewGuid(),d.TenantId,d.Id,v.Id,blob.Uri.ToString(),d.ContentType,d.SizeBytes,DateTimeOffset.UtcNow,correlation),correlation,ct);log.LogInformation("Uploaded document {DocumentId} Blob={BlobUri}",d.Id,blob.Uri);return Accepted(new{documentId=d.Id,versionId=v.Id,status=d.Status});}}
+using EnterpriseDocumentIntelligence.BuildingBlocks.Security;
+using EnterpriseDocumentIntelligence.DocumentService.Application;
+using EnterpriseDocumentIntelligence.DocumentService.Domain;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EnterpriseDocumentIntelligence.DocumentService.Api;
+
+[ApiController]
+[Route("api/v1/documents")]
+[Authorize]
+public sealed class DocumentUploadController(
+    DocumentServiceApplication service) : ControllerBase
+{
+    [HttpPost("upload")]
+    [RequestSizeLimit(DocumentSizePolicy.MaximumBytes)]
+    [Authorize(Roles = Roles.Contributor + "," + Roles.Administrator)]
+    public async Task<IActionResult> Upload(
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest("File is required.");
+
+        var fileName = Path.GetFileName(file.FileName);
+
+        if (string.IsNullOrWhiteSpace(fileName))
+            return BadRequest("Invalid file name.");
+
+        if (!FileSignatureValidator.IsAllowed(file, fileName))
+            return BadRequest(
+                "File content does not match the declared document type.");
+
+        await using var stream = file.OpenReadStream();
+
+        var result = await service.UploadAsync(
+            new UploadDocumentCommand(
+                fileName,
+                file.ContentType,
+                stream,
+                file.Length),
+            cancellationToken);
+
+        return Accepted(result);
+    }
+}

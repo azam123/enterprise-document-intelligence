@@ -1,0 +1,107 @@
+name: DocumentService verification
+
+on:
+  push:
+    branches:
+      - work/90-percent-service-quality
+    paths:
+      - 'src/BuildingBlocks/**'
+      - 'src/DocumentService/**'
+      - 'tests/DocumentService/**'
+      - '.github/workflows/document-service.yml'
+  pull_request:
+    paths:
+      - 'src/BuildingBlocks/**'
+      - 'src/DocumentService/**'
+      - 'tests/DocumentService/**'
+      - '.github/workflows/document-service.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-document-service:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore DocumentService
+        run: dotnet restore src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
+
+      - name: Build DocumentService
+        run: dotnet build src/DocumentService/DocumentService.Api/DocumentService.Api.csproj --configuration Release --no-restore
+
+      - name: Restore unit tests
+        run: dotnet restore tests/DocumentService/Unit.csproj
+
+      - name: Run DocumentService tests with coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf tests/DocumentService/TestResults/DocumentService
+          mkdir -p tests/DocumentService/TestResults/DocumentService
+
+          cat > tests/DocumentService/TestResults/DocumentService/DocumentService.runsettings <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <RunSettings>
+            <DataCollectionRunSettings>
+              <DataCollectors>
+                <DataCollector friendlyName="XPlat Code Coverage">
+                  <Configuration>
+                    <Format>cobertura</Format>
+                    <Include>[DocumentService.Api]*,[DocumentService.Application]*,[DocumentService.Domain]*,[DocumentService.Infrastructure]*</Include>
+                    <ExcludeByFile>**/Program.cs,**/*Controller.cs</ExcludeByFile>
+                    <ExcludeAssembliesWithoutSources>MissingAll</ExcludeAssembliesWithoutSources>
+                    <SkipAutoProps>true</SkipAutoProps>
+                  </Configuration>
+                </DataCollector>
+              </DataCollectors>
+            </DataCollectionRunSettings>
+          </RunSettings>
+          EOF
+
+          dotnet test tests/DocumentService/Unit.csproj             --configuration Release             --no-restore             --settings tests/DocumentService/TestResults/DocumentService/DocumentService.runsettings             --results-directory tests/DocumentService/TestResults/DocumentService             --collect:"XPlat Code Coverage"             --logger "trx;LogFileName=DocumentService.trx"
+
+          report=$(find tests/DocumentService/TestResults/DocumentService -name coverage.cobertura.xml -type f | head -n 1)
+          test -n "$report"
+
+          REPORT="$report" python3 - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+
+          report = os.environ["REPORT"]
+          root = ET.parse(report).getroot()
+          valid = int(root.attrib.get("lines-valid", "0"))
+          line = float(root.attrib.get("line-rate", "0")) * 100
+
+          print(f"DocumentService coverable lines: {valid}")
+          print(f"DocumentService line coverage: {line:.2f}%")
+
+          if valid == 0:
+              raise SystemExit("DocumentService coverage was not measured.")
+
+          if line < 90:
+              raise SystemExit(
+                  f"DocumentService coverage {line:.2f}% is below the required 90%."
+              )
+          PY
+
+      - name: Publish DocumentService
+        run: dotnet publish src/DocumentService/DocumentService.Api/DocumentService.Api.csproj --configuration Release --no-restore --output artifacts/DocumentService
+
+      - name: Upload DocumentService artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DocumentService
+          path: artifacts/DocumentService
+
+      - name: Upload DocumentService coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: DocumentService-coverage
+          path: tests/DocumentService/TestResults/DocumentService

@@ -1,3 +1,20 @@
-using EnterpriseDocumentIntelligence.BuildingBlocks.Security;using Microsoft.AspNetCore.Authorization;using Microsoft.AspNetCore.Mvc;using System.Text.Json;
-public sealed record McpToolRequest(string Tool,JsonElement Arguments);public sealed record McpToolResponse(string Tool,string Status,string Result);
-[ApiController,Route("api/v1/mcp"),Authorize]public sealed class McpController(ICurrentUser user,ILogger<McpController> log):ControllerBase{static readonly HashSet<string> Allowed=["document.search","document.get","document.audit"];[HttpGet("tools")]public IActionResult Tools()=>Ok(Allowed.Select(x=>new{name=x,inputSchema=new{type="object"}}));[HttpPost("tools/call")]public async Task<ActionResult<McpToolResponse>>Call(McpToolRequest r,CancellationToken ct){if(!Allowed.Contains(r.Tool))return Forbid();if(r.Arguments.ValueKind==JsonValueKind.Undefined||r.Arguments.GetRawText().Length>32768)return BadRequest("Invalid or oversized arguments");log.LogInformation("MCP tool={Tool} Tenant={TenantId} User={UserId}",r.Tool,user.TenantId,user.UserId);await Task.Delay(1,ct);return Ok(new McpToolResponse(r.Tool,"Accepted","Tool execution is authorized at the MCP boundary; downstream resources must repeat tenant/resource authorization."));}}
+using EnterpriseDocumentIntelligence.BuildingBlocks.Security;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+public sealed record McpToolRequest(string Tool,JsonElement Arguments);
+public sealed record McpToolResponse(string Tool,string Status,object Result);
+[ApiController,Route("api/v1/mcp"),Authorize]
+public sealed class McpController(IMcpToolExecutor executor,ICurrentUser user,ILogger<McpController> log):ControllerBase
+{
+ private static readonly HashSet<string> Allowed=["document.search","document.get","document.audit"];
+ [HttpGet("tools")]public IActionResult Tools()=>Ok(Allowed.Select(x=>new{name=x,inputSchema=new{type="object"}}));
+ [HttpPost("tools/call")]public async Task<ActionResult<McpToolResponse>>Call(McpToolRequest request,CancellationToken ct)
+ {
+  if(!Allowed.Contains(request.Tool))return NotFound();
+  if(request.Arguments.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null||request.Arguments.GetRawText().Length>32768)return BadRequest("Invalid or oversized arguments.");
+  log.LogInformation("MCP tool={Tool} Tenant={TenantId} User={UserId}",request.Tool,user.TenantId,user.UserId);
+  var result=await executor.ExecuteAsync(request.Tool,request.Arguments,ct);
+  return Ok(new McpToolResponse(request.Tool,"Completed",result));
+ }
+}

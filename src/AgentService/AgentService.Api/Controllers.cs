@@ -1,3 +1,9 @@
-using EnterpriseDocumentIntelligence.BuildingBlocks.Security;using Microsoft.AspNetCore.Authorization;using Microsoft.AspNetCore.Mvc;
-public sealed record AgentRunRequest(string Prompt,int MaxToolCalls=8,int MaxTokens=1200);
-[ApiController,Route("api/v1/agents"),Authorize]public sealed class AgentController(AgentHarness harness,ICurrentUser user,ILogger<AgentController> log):ControllerBase{[HttpPost("runs")][Authorize(Roles=Roles.Reader+","+Roles.Contributor+","+Roles.Administrator)]public async Task<IActionResult>Run(AgentRunRequest r,CancellationToken ct){if(string.IsNullOrWhiteSpace(r.Prompt))return BadRequest("Prompt is required");if(r.MaxToolCalls is <1 or >20||r.MaxTokens is <256 or >16000)return BadRequest("Invalid agent budget");var result=await harness.RunAsync(r.Prompt,r.MaxToolCalls,r.MaxTokens,ct);log.LogInformation("Agent run complete Tenant={TenantId} User={UserId} ToolCalls={ToolCalls}",user.TenantId,user.UserId,result.ToolCalls);return Ok(result);}}
+using EnterpriseDocumentIntelligence.BuildingBlocks.Security;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+public sealed record AgentRequest(string Prompt,int MaxTools=4,int MaxTokens=2048);
+[ApiController,Route("api/v1/agent"),Authorize]
+public sealed class AgentController(AgentHarness harness):ControllerBase
+{
+ [HttpPost("run")]public async Task<ActionResult<AgentResult>>Run(AgentRequest request,CancellationToken ct){try{return Ok(await harness.RunAsync(request.Prompt,request.MaxTools,request.MaxTokens,ct));}catch(ArgumentException ex){return BadRequest(ex.Message);}}
+}
