@@ -1,3 +1,4 @@
+using Azure.Storage.Blobs;
 using System.Text.RegularExpressions;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;
 
