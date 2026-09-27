@@ -74,7 +74,11 @@ public sealed class BlobIngestionService(BlobServiceClient blobs, IDocumentExtra
 {
     public async Task<string> ExtractAndStoreAsync(string blobUri, Guid tenantId, Guid documentId, Guid versionId, string contentType, string fileName, CancellationToken ct)
     {
-        var source = new Azure.Storage.Blobs.BlobClient(new Uri(blobUri), new Azure.Identity.DefaultAzureCredential());
+        var parsed = new Uri(blobUri);
+        if (parsed.Segments.Length < 3) throw new InvalidDataException("Invalid source blob URI.");
+        var containerName = parsed.Segments[1].Trim('/');
+        var blobName = string.Join("", parsed.Segments.Skip(2)).TrimStart('/');
+        var source = blobs.GetBlobContainerClient(containerName).GetBlobClient(Uri.UnescapeDataString(blobName));
         await using var input = await source.OpenReadAsync(cancellationToken: ct);
         var text = await extractor.ExtractAsync(input, contentType, fileName, ct);
         var container = blobs.GetBlobContainerClient("extracted");
