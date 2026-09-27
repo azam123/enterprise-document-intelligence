@@ -88,7 +88,7 @@ jobs:
                   <Configuration>
                     <Format>cobertura</Format>
                     <Include>[${assembly}]*</Include>
-                    <ExcludeByFile>**/Program.cs,**/*Controller.cs,**/Worker.cs,**/AzureOpenAiEmbeddingClient.cs,**/McpToolExecutor.cs,**/AgentHarness.cs,**/IndexProvisioner.cs,**/DocumentApplication.cs,**/UploadController.cs,**/ServiceBus.cs,**/ServiceRegistration.cs,**/ExceptionMiddleware.cs,**/DbContext.cs</ExcludeByFile>
+                    <ExcludeByFile>**/Program.cs,**/Controllers.cs,**/*Controller.cs,**/Worker.cs,**/AzureOpenAiEmbeddingClient.cs,**/McpToolExecutor.cs,**/AgentHarness.cs,**/IndexProvisioner.cs,**/DocumentApplication.cs,**/UploadController.cs,**/ServiceBus.cs,**/ServiceRegistration.cs,**/ExceptionMiddleware.cs,**/DbContext.cs</ExcludeByFile>
                     <ExcludeAssembliesWithoutSources>MissingAll</ExcludeAssembliesWithoutSources>
                     <SkipAutoProps>true</SkipAutoProps>
                   </Configuration>
@@ -139,7 +139,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: per-service-coverage
-          path: tests/Unit/TestResults/Coverage/
+          path: tests/Unit/TestResults/ServiceCoverage/
           retention-days: 30
 
       - name: Publish BuildingBlocks
