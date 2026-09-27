@@ -29,6 +29,6 @@ public sealed class IndexProvisioner(SearchIndexClient indexes, IConfiguration c
                 Profiles={new VectorSearchProfile("default-vector-profile","default-hnsw")}
             }
         };
-        await indexes.CreateOrUpdateIndexAsync(index,ct);
+        await indexes.CreateOrUpdateIndexAsync(index, onlyIfUnchanged: false, cancellationToken: ct);
     }
 }
