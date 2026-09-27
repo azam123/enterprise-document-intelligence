@@ -70,3 +70,4 @@ public sealed class DocumentEventPublisher(
                 null),
             correlationId,
             cancellationToken);
+}
