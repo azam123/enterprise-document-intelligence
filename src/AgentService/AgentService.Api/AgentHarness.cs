@@ -48,7 +48,7 @@ public sealed class AgentHarness(HttpClient http,IHttpContextAccessor context,IC
   var baseUrl=configuration["Services:SearchServiceUrl"]?.TrimEnd('/')??throw new InvalidOperationException("Services:SearchServiceUrl missing");
   using var request=new HttpRequestMessage(HttpMethod.Post,$"{baseUrl}/api/v1/search");
   var authorization=context.HttpContext?.Request.Headers.Authorization.ToString();if(!string.IsNullOrWhiteSpace(authorization))request.Headers.TryAddWithoutValidation("Authorization",authorization);
-  request.Headers.TryAddWithoutValidation("X-Tenant-Id",context.HttpContext?.User.FindFirst("tid")?.Value);
+  var tenant=context.HttpContext?.User.FindFirst("tid")?.Value;if(!string.IsNullOrWhiteSpace(tenant))request.Headers.TryAddWithoutValidation("X-Tenant-Id",tenant);
   request.Content=new StringContent(JsonSerializer.Serialize(new{query=args.Query,topK=Math.Clamp(args.TopK<=0?8:args.TopK,1,20)}),Encoding.UTF8,"application/json");
   using var response=await http.SendAsync(request,ct);response.EnsureSuccessStatusCode();
   var results=await response.Content.ReadFromJsonAsync<List<SearchHit>>(cancellationToken:ct)??[];
