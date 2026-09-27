@@ -274,6 +274,66 @@ public sealed class DocumentServiceApplicationTests
     }
 
     [Fact]
+    public void File_signature_accepts_plain_text()
+    {
+        using var stream = new MemoryStream("hello"u8.ToArray());
+        var file = new FormFile(stream, 0, stream.Length, "file", "notes.txt")
+        {
+            ContentType = "text/plain"
+        };
+
+        Assert.True(
+            EnterpriseDocumentIntelligence.DocumentService.Api.FileSignatureValidator.IsAllowed(
+                file,
+                "notes.txt"));
+    }
+
+    [Fact]
+    public void File_signature_accepts_pdf()
+    {
+        using var stream = new MemoryStream("%PDF-1.7"u8.ToArray());
+        var file = new FormFile(stream, 0, stream.Length, "file", "report.pdf")
+        {
+            ContentType = "application/pdf"
+        };
+
+        Assert.True(
+            EnterpriseDocumentIntelligence.DocumentService.Api.FileSignatureValidator.IsAllowed(
+                file,
+                "report.pdf"));
+    }
+
+    [Fact]
+    public void File_signature_rejects_invalid_pdf()
+    {
+        using var stream = new MemoryStream("not-a-pdf"u8.ToArray());
+        var file = new FormFile(stream, 0, stream.Length, "file", "report.pdf")
+        {
+            ContentType = "application/pdf"
+        };
+
+        Assert.False(
+            EnterpriseDocumentIntelligence.DocumentService.Api.FileSignatureValidator.IsAllowed(
+                file,
+                "report.pdf"));
+    }
+
+    [Fact]
+    public void File_signature_rejects_missing_file_name()
+    {
+        using var stream = new MemoryStream();
+        var file = new FormFile(stream, 0, 0, "file", "notes.txt")
+        {
+            ContentType = "text/plain"
+        };
+
+        Assert.False(
+            EnterpriseDocumentIntelligence.DocumentService.Api.FileSignatureValidator.IsAllowed(
+                file,
+                string.Empty));
+    }
+
+    [Fact]
     public void Domain_name_normalizes_whitespace()
     {
         var name = new DocumentName("  report.pdf  ");
