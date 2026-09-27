@@ -14,8 +14,8 @@ public sealed class DocumentUploadController(BlobServiceClient blobs,DocumentDbC
  {
   if(file is null||file.Length==0)return BadRequest("File is required");if(file.Length>524288000)return BadRequest("Maximum file size is 500 MB");
   var allowed=new[]{"application/pdf","text/plain","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/msword"};if(!allowed.Contains(file.ContentType,StringComparer.OrdinalIgnoreCase))return BadRequest("Unsupported document type");
-  var d=new Document(user.TenantId,file.FileName,file.ContentType,file.Length);var container=blobs.GetBlobContainerClient("documents");await container.CreateIfNotExistsAsync(cancellationToken:ct);
-  var versionNumber=1;var blob=container.GetBlobClient($"{user.TenantId}/{d.Id}/{versionNumber}/{Uri.EscapeDataString(file.FileName)}");
+  var safeFileName=Path.GetFileName(file.FileName);if(string.IsNullOrWhiteSpace(safeFileName))return BadRequest("Invalid file name");if(!FileSignatureValidator.IsAllowed(file,safeFileName))return BadRequest("File content does not match the declared document type");var d=new Document(user.TenantId,safeFileName,file.ContentType,file.Length);var container=blobs.GetBlobContainerClient("documents");await container.CreateIfNotExistsAsync(cancellationToken:ct);
+  var versionNumber=1;var blob=container.GetBlobClient($"{user.TenantId}/{d.Id}/{versionNumber}/{Uri.EscapeDataString(safeFileName)}");
   await using var hashStream=file.OpenReadStream();var hash=await SHA256.HashDataAsync(hashStream,ct);
   await using var uploadStream=file.OpenReadStream();await blob.UploadAsync(uploadStream,overwrite:false,ct);
   var v=new DocumentVersion(d.Id,versionNumber,blob.Uri.ToString(),Convert.ToHexString(hash),file.Length);d.Versions.Add(v);d.SetCurrentVersion(v.Id);d.MarkProcessing();db.Documents.Add(d);await db.SaveChangesAsync(ct);
