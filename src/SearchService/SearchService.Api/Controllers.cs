@@ -1,3 +1,7 @@
-using Azure.Search.Documents;using Azure.Search.Documents.Models;using EnterpriseDocumentIntelligence.BuildingBlocks.Security;using Microsoft.AspNetCore.Authorization;using Microsoft.AspNetCore.Mvc;
-public sealed record SearchRequest(string Query,int TopK=10);public sealed record SearchResult(string DocumentId,string Text,double Score,string Citation);
-[ApiController,Route("api/v1/search"),Authorize]public sealed class SearchController(SearchClient client,ICurrentUser user,ILogger<SearchController> log):ControllerBase{[HttpPost]public async Task<ActionResult<IReadOnlyList<SearchResult>>>Search(SearchRequest r,CancellationToken ct){if(string.IsNullOrWhiteSpace(r.Query))return BadRequest("Query is required");if(r.TopK is <1 or >50)return BadRequest("TopK must be 1-50");var options=new SearchOptions{Size=r.TopK,Filter=$"TenantId eq '{user.TenantId}'"};options.Select.Add("DocumentId");options.Select.Add("Text");options.Select.Add("Citation");var response=await client.SearchAsync<SearchDocument>(r.Query,options,ct);var results=new List<SearchResult>();await foreach(var x in response.Value.GetResultsAsync()){var d=x.Document;results.Add(new(d.GetString("DocumentId")??"",d.GetString("Text")??"",x.Score ?? 0d,d.GetString("Citation")??""));}log.LogInformation("RAG retrieval Tenant={TenantId} Results={Count}",user.TenantId,results.Count);return Ok(results);}}
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+[ApiController,Route("api/v1/search"),Authorize]
+public sealed class SearchController(SearchApplication application):ControllerBase
+{
+ [HttpPost]public async Task<ActionResult<IReadOnlyList<SearchResult>>>Search(SearchRequest request,CancellationToken ct){try{return Ok(await application.SearchAsync(request,ct));}catch(ArgumentException ex){return BadRequest(ex.Message);}catch(UnauthorizedAccessException){return Unauthorized();}}
+}
