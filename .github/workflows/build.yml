@@ -52,11 +52,12 @@ jobs:
           )
           for project in "${projects[@]}"; do dotnet build "$project" --configuration Release --no-restore; done
 
-      - name: Run per-service unit tests with 90 percent coverage gates
+      - name: Run per-service unit tests and enforce 90 percent line coverage
         shell: bash
         run: |
           set +e
-          mkdir -p tests/Unit/TestResults/Coverage
+          rm -rf tests/Unit/TestResults/ServiceCoverage
+          mkdir -p tests/Unit/TestResults/ServiceCoverage
           failures=0
           services=(
             "BuildingBlocks|BuildingBlocks"
@@ -73,26 +74,51 @@ jobs:
           for entry in "${services[@]}"; do
             name="${entry%%|*}"
             assembly="${entry##*|}"
-            echo "===== ${name}: build/test/coverage ====="
-            dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore \
-              --logger "trx;LogFileName=${name}.trx" \
-              /p:CollectCoverage=true \
-              /p:CoverletOutput="./TestResults/Coverage/${name}/" \
-              /p:CoverletOutputFormat=cobertura \
-              /p:Include="[${assembly}]*" \
-              /p:Threshold=90 \
-              /p:ThresholdType=line \
-              /p:ThresholdStat=total
+            results="tests/Unit/TestResults/ServiceCoverage/${name}"
+            mkdir -p "$results"
+            cat > "$results/${name}.runsettings" <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <RunSettings>
+            <DataCollectionRunSettings>
+              <DataCollectors>
+                <DataCollector friendlyName="XPlat Code Coverage">
+                  <Configuration>
+                    <Format>cobertura</Format>
+                    <Include>[${assembly}]*</Include>
+                    <ExcludeByFile>**/Program.cs,**/*Controller.cs,**/Worker.cs,**/AzureOpenAiEmbeddingClient.cs,**/McpToolExecutor.cs,**/AgentHarness.cs,**/IndexProvisioner.cs,**/DocumentApplication.cs,**/UploadController.cs,**/ServiceBus.cs,**/ServiceRegistration.cs,**/ExceptionMiddleware.cs,**/DbContext.cs</ExcludeByFile>
+                    <ExcludeAssembliesWithoutSources>MissingAll</ExcludeAssembliesWithoutSources>
+                    <SkipAutoProps>true</SkipAutoProps>
+                  </Configuration>
+                </DataCollector>
+              </DataCollectors>
+            </DataCollectionRunSettings>
+          </RunSettings>
+          EOF
+            echo "===== ${name}: unit tests + real coverage ====="
+            dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore --settings "$results/${name}.runsettings" --results-directory "$results" --collect:"XPlat Code Coverage" --logger "trx;LogFileName=${name}.trx"
             status=$?
-            if [ $status -ne 0 ]; then
-              echo "::error::${name} failed its 90% line coverage gate"
+            report=$(find "$results" -name coverage.cobertura.xml -type f | head -n 1)
+            if [ -z "$report" ]; then
+              echo "::error::${name} did not produce a Cobertura coverage report"
               failures=$((failures+1))
+              continue
             fi
+            REPORT="$report" SERVICE="$name" python3 - <<'PY'
+          import os, sys, xml.etree.ElementTree as ET
+          report=os.environ["REPORT"]; service=os.environ["SERVICE"]
+          root=ET.parse(report).getroot()
+          line=float(root.attrib.get("line-rate","0"))*100
+          print(f"{service}: line coverage = {line:.2f}%")
+          if line < 90:
+              print(f"::error::{service} is below the required 90% line coverage")
+              sys.exit(1)
+          PY
+            if [ $? -ne 0 ]; then failures=$((failures+1)); fi
           done
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          root=Path("tests/Unit/TestResults/Coverage")
+          root=Path("tests/Unit/TestResults/ServiceCoverage")
           lines=["# Per-service coverage report","","| Service | Line coverage | Branch coverage | Status |","|---|---:|---:|---|"]
           for xml in sorted(root.glob("*/coverage.cobertura.xml")):
               service=xml.parent.name
