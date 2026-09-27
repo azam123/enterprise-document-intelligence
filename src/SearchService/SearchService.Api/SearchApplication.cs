@@ -11,7 +11,7 @@ public sealed class SearchApplication(SearchClient client,AzureOpenAiEmbeddingCl
   if(request.TopK is <1 or >50)throw new ArgumentOutOfRangeException(nameof(request.TopK));
   if(user.TenantId==Guid.Empty)throw new UnauthorizedAccessException();
   var vector=await embeddings.EmbedAsync(request.Query,ct);
-  var options=new SearchOptions{Size=request.TopK,Filter=BuildFilter(user.TenantId,user.UserId)};
+  var options=new SearchOptions{Size=request.TopK,Filter=SearchFilterBuilder.Build(user.TenantId,user.UserId)};
   options.Select.Add("DocumentId");options.Select.Add("Text");options.Select.Add("Citation");
   options.VectorSearch=new(){Queries={new VectorizedQuery(vector){KNearestNeighborsCount=request.TopK,Fields={"ContentVector"}}}};
   var response=await client.SearchAsync<SearchDocument>(request.Query,options,ct);
@@ -20,6 +20,5 @@ public sealed class SearchApplication(SearchClient client,AzureOpenAiEmbeddingCl
   log.LogInformation("Hybrid retrieval Tenant={TenantId} Results={Count}",user.TenantId,results.Count);
   return results;
  }
- public static string BuildFilter(Guid tenantId,Guid userId){var tenant=Escape(tenantId.ToString());var principal=Escape(userId.ToString());return $"TenantId eq '{tenant}' and (not AllowedPrincipalIds/any() or AllowedPrincipalIds/any(p: p eq '{principal}'))";}
- private static string Escape(string value)=>value.Replace("'","''",StringComparison.Ordinal);
+
 }
