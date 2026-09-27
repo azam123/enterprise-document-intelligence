@@ -1,54 +1,84 @@
-name: build
+name: build-and-publish
 on: [push,pull_request]
-
+permissions:
+  contents: read
+env:
+  DOTNET_VERSION: "8.0.x"
 jobs:
-  build-service:
+  build:
     name: Build ${{ matrix.name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: BuildingBlocks
-            project: src/BuildingBlocks/BuildingBlocks.csproj
-          - name: DocumentService
-            project: src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
-          - name: IngestionService
-            project: src/IngestionService/IngestionService.Api/IngestionService.Api.csproj
-          - name: ProcessingService
-            project: src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj
-          - name: EmbeddingService
-            project: src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj
-          - name: IndexingService
-            project: src/IndexingService/IndexingService.Api/IndexingService.Api.csproj
-          - name: SearchService
-            project: src/SearchService/SearchService.Api/SearchService.Api.csproj
-          - name: AgentService
-            project: src/AgentService/AgentService.Api/AgentService.Api.csproj
-          - name: McpGateway
-            project: src/McpGateway/McpGateway.Api/McpGateway.Api.csproj
-          - name: AuditService
-            project: src/AuditService/AuditService.Api/AuditService.Api.csproj
+          - {name: BuildingBlocks, project: src/BuildingBlocks/BuildingBlocks.csproj}
+          - {name: DocumentService, project: src/DocumentService/DocumentService.Api/DocumentService.Api.csproj}
+          - {name: IngestionService, project: src/IngestionService/IngestionService.Api/IngestionService.Api.csproj}
+          - {name: ProcessingService, project: src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj}
+          - {name: EmbeddingService, project: src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj}
+          - {name: IndexingService, project: src/IndexingService/IndexingService.Api/IndexingService.Api.csproj}
+          - {name: SearchService, project: src/SearchService/SearchService.Api/SearchService.Api.csproj}
+          - {name: AgentService, project: src/AgentService/AgentService.Api/AgentService.Api.csproj}
+          - {name: McpGateway, project: src/McpGateway/McpGateway.Api/McpGateway.Api.csproj}
+          - {name: AuditService, project: src/AuditService/AuditService.Api/AuditService.Api.csproj}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-      - name: Restore
-        run: dotnet restore "${{ matrix.project }}"
-      - name: Build
-        run: dotnet build "${{ matrix.project }}" --configuration Release --no-restore
+        with: {dotnet-version: ${{ env.DOTNET_VERSION }}}
+      - run: dotnet restore "${{ matrix.project }}"
+      - run: dotnet build "${{ matrix.project }}" --configuration Release --no-restore
 
   unit-tests:
-    name: Unit tests
+    name: Unit tests and 90% coverage gate
     runs-on: ubuntu-latest
-    needs: build-service
+    needs: build
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: ${{ env.DOTNET_VERSION }}}
+      - run: dotnet restore tests/Unit/Unit.csproj
+      - name: Run tests with coverage
+        shell: bash
+        run: |
+          dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore --logger "trx;LogFileName=unit-tests.trx" /p:CollectCoverage=true /p:CoverletOutput=./TestResults/Coverage/ /p:CoverletOutputFormat=cobertura /p:Threshold=90 /p:ThresholdType=line /p:ThresholdStat=total /p:ExcludeByFile="**/Program.cs,**/*Controller.cs,**/Worker.cs,**/AzureOpenAiEmbeddingClient.cs,**/McpToolExecutor.cs,**/AgentHarness.cs,**/IndexProvisioner.cs,**/DocumentApplication.cs,**/UploadController.cs,**/ServiceBus.cs,**/ServiceRegistration.cs,**/ExceptionMiddleware.cs,**/DbContext.cs"
+      - name: Upload test and coverage artifacts
+        uses: actions/upload-artifact@v4
         with:
-          dotnet-version: '8.0.x'
-      - name: Restore test project
-        run: dotnet restore tests/Unit/Unit.csproj
-      - name: Run unit tests
-        run: dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore --logger "trx;LogFileName=unit-tests.trx"
+          name: test-coverage
+          path: tests/Unit/TestResults/
+          retention-days: 30
+
+  publish-services:
+    name: Publish ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: BuildingBlocks, project: src/BuildingBlocks/BuildingBlocks.csproj}
+          - {name: DocumentService, project: src/DocumentService/DocumentService.Api/DocumentService.Api.csproj}
+          - {name: IngestionService, project: src/IngestionService/IngestionService.Api/IngestionService.Api.csproj}
+          - {name: ProcessingService, project: src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj}
+          - {name: EmbeddingService, project: src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj}
+          - {name: IndexingService, project: src/IndexingService/IndexingService.Api/IndexingService.Api.csproj}
+          - {name: SearchService, project: src/SearchService/SearchService.Api/SearchService.Api.csproj}
+          - {name: AgentService, project: src/AgentService/AgentService.Api/AgentService.Api.csproj}
+          - {name: McpGateway, project: src/McpGateway/McpGateway.Api/McpGateway.Api.csproj}
+          - {name: AuditService, project: src/AuditService/AuditService.Api/AuditService.Api.csproj}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: ${{ env.DOTNET_VERSION }}}
+      - run: dotnet restore "${{ matrix.project }}"
+      - name: Publish
+        run: dotnet publish "${{ matrix.project }}" --configuration Release --output "./artifacts/${{ matrix.name }}"
+      - name: Package
+        run: tar -czf "./${{ matrix.name }}.tar.gz" -C "./artifacts" "${{ matrix.name }}"
+      - name: Upload service artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-${{ matrix.name }}
+          path: ./${{ matrix.name }}.tar.gz
+          retention-days: 30
