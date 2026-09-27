@@ -7,52 +7,52 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build ${{ matrix.name }}
+  verify-publish:
+    name: Build test and publish all services
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: BuildingBlocks
-            project: src/BuildingBlocks/BuildingBlocks.csproj
-          - name: DocumentService
-            project: src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
-          - name: IngestionService
-            project: src/IngestionService/IngestionService.Api/IngestionService.Api.csproj
-          - name: ProcessingService
-            project: src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj
-          - name: EmbeddingService
-            project: src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj
-          - name: IndexingService
-            project: src/IndexingService/IndexingService.Api/IndexingService.Api.csproj
-          - name: SearchService
-            project: src/SearchService/SearchService.Api/SearchService.Api.csproj
-          - name: AgentService
-            project: src/AgentService/AgentService.Api/AgentService.Api.csproj
-          - name: McpGateway
-            project: src/McpGateway/McpGateway.Api/McpGateway.Api.csproj
-          - name: AuditService
-            project: src/AuditService/AuditService.Api/AuditService.Api.csproj
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet restore "${{ matrix.project }}"
-      - run: dotnet build "${{ matrix.project }}" --configuration Release --no-restore
 
-  unit-tests:
-    name: Unit tests and 90% coverage gate
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-      - run: dotnet restore tests/Unit/Unit.csproj
-      - name: Run tests with coverage
+      - name: Restore all projects
+        shell: bash
+        run: |
+          set -euo pipefail
+          projects=(
+            src/BuildingBlocks/BuildingBlocks.csproj
+            src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
+            src/IngestionService/IngestionService.Api/IngestionService.Api.csproj
+            src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj
+            src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj
+            src/IndexingService/IndexingService.Api/IndexingService.Api.csproj
+            src/SearchService/SearchService.Api/SearchService.Api.csproj
+            src/AgentService/AgentService.Api/AgentService.Api.csproj
+            src/McpGateway/McpGateway.Api/McpGateway.Api.csproj
+            src/AuditService/AuditService.Api/AuditService.Api.csproj
+          )
+          for project in "${projects[@]}"; do dotnet restore "$project"; done
+
+      - name: Build all services
+        shell: bash
+        run: |
+          set -euo pipefail
+          projects=(
+            src/BuildingBlocks/BuildingBlocks.csproj
+            src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
+            src/IngestionService/IngestionService.Api/IngestionService.Api.csproj
+            src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj
+            src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj
+            src/IndexingService/IndexingService.Api/IndexingService.Api.csproj
+            src/SearchService/SearchService.Api/SearchService.Api.csproj
+            src/AgentService/AgentService.Api/AgentService.Api.csproj
+            src/McpGateway/McpGateway.Api/McpGateway.Api.csproj
+            src/AuditService/AuditService.Api/AuditService.Api.csproj
+          )
+          for project in "${projects[@]}"; do dotnet build "$project" --configuration Release --no-restore; done
+
+      - name: Run unit tests with 90 percent coverage gate
         shell: bash
         run: >
           dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore
@@ -64,54 +64,81 @@ jobs:
           /p:ThresholdType=line
           /p:ThresholdStat=total
           /p:ExcludeByFile="**/Program.cs,**/*Controller.cs,**/Worker.cs,**/AzureOpenAiEmbeddingClient.cs,**/McpToolExecutor.cs,**/AgentHarness.cs,**/IndexProvisioner.cs,**/DocumentApplication.cs,**/UploadController.cs,**/ServiceBus.cs,**/ServiceRegistration.cs,**/ExceptionMiddleware.cs,**/DbContext.cs"
-      - name: Upload test and coverage artifacts
+
+      - name: Publish BuildingBlocks
+        run: dotnet publish src/BuildingBlocks/BuildingBlocks.csproj --configuration Release --output artifacts/BuildingBlocks
+      - name: Package BuildingBlocks
+        run: tar -czf BuildingBlocks.tar.gz -C artifacts BuildingBlocks
+      - name: Publish DocumentService
+        run: dotnet publish src/DocumentService/DocumentService.Api/DocumentService.Api.csproj --configuration Release --output artifacts/DocumentService
+      - name: Package DocumentService
+        run: tar -czf DocumentService.tar.gz -C artifacts DocumentService
+      - name: Publish IngestionService
+        run: dotnet publish src/IngestionService/IngestionService.Api/IngestionService.Api.csproj --configuration Release --output artifacts/IngestionService
+      - name: Package IngestionService
+        run: tar -czf IngestionService.tar.gz -C artifacts IngestionService
+      - name: Publish ProcessingService
+        run: dotnet publish src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj --configuration Release --output artifacts/ProcessingService
+      - name: Package ProcessingService
+        run: tar -czf ProcessingService.tar.gz -C artifacts ProcessingService
+      - name: Publish EmbeddingService
+        run: dotnet publish src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj --configuration Release --output artifacts/EmbeddingService
+      - name: Package EmbeddingService
+        run: tar -czf EmbeddingService.tar.gz -C artifacts EmbeddingService
+      - name: Publish IndexingService
+        run: dotnet publish src/IndexingService/IndexingService.Api/IndexingService.Api.csproj --configuration Release --output artifacts/IndexingService
+      - name: Package IndexingService
+        run: tar -czf IndexingService.tar.gz -C artifacts IndexingService
+      - name: Publish SearchService
+        run: dotnet publish src/SearchService/SearchService.Api/SearchService.Api.csproj --configuration Release --output artifacts/SearchService
+      - name: Package SearchService
+        run: tar -czf SearchService.tar.gz -C artifacts SearchService
+      - name: Publish AgentService
+        run: dotnet publish src/AgentService/AgentService.Api/AgentService.Api.csproj --configuration Release --output artifacts/AgentService
+      - name: Package AgentService
+        run: tar -czf AgentService.tar.gz -C artifacts AgentService
+      - name: Publish McpGateway
+        run: dotnet publish src/McpGateway/McpGateway.Api/McpGateway.Api.csproj --configuration Release --output artifacts/McpGateway
+      - name: Package McpGateway
+        run: tar -czf McpGateway.tar.gz -C artifacts McpGateway
+      - name: Publish AuditService
+        run: dotnet publish src/AuditService/AuditService.Api/AuditService.Api.csproj --configuration Release --output artifacts/AuditService
+      - name: Package AuditService
+        run: tar -czf AuditService.tar.gz -C artifacts AuditService
+
+      - name: Upload BuildingBlocks artifact
+        uses: actions/upload-artifact@v4
+        with: {name: service-BuildingBlocks, path: BuildingBlocks.tar.gz, retention-days: 30}
+      - name: Upload DocumentService artifact
+        uses: actions/upload-artifact@v4
+        with: {name: service-DocumentService, path: DocumentService.tar.gz, retention-days: 30}
+      - name: Upload IngestionService artifact
+        uses: actions/upload-artifact@v4
+        with: {name: service-IngestionService, path: IngestionService.tar.gz, retention-days: 30}
+      - name: Upload ProcessingService artifact
+        uses: actions/upload-artifact@v4
+        with: {name: service-ProcessingService, path: ProcessingService.tar.gz, retention-days: 30}
+      - name: Upload EmbeddingService artifact
+        uses: actions/upload-artifact@v4
+        with: {name: service-EmbeddingService, path: EmbeddingService.tar.gz, retention-days: 30}
+      - name: Upload IndexingService artifact
+        uses: actions/upload-artifact@v4
+        with: {name: service-IndexingService, path: IndexingService.tar.gz, retention-days: 30}
+      - name: Upload SearchService artifact
+        uses: actions/upload-artifact@v4
+        with: {name: service-SearchService, path: SearchService.tar.gz, retention-days: 30}
+      - name: Upload AgentService artifact
+        uses: actions/upload-artifact@v4
+        with: {name: service-AgentService, path: AgentService.tar.gz, retention-days: 30}
+      - name: Upload McpGateway artifact
+        uses: actions/upload-artifact@v4
+        with: {name: service-McpGateway, path: McpGateway.tar.gz, retention-days: 30}
+      - name: Upload AuditService artifact
+        uses: actions/upload-artifact@v4
+        with: {name: service-AuditService, path: AuditService.tar.gz, retention-days: 30}
+      - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: test-coverage
           path: tests/Unit/TestResults/
-          retention-days: 30
-
-  publish-services:
-    name: Publish ${{ matrix.name }}
-    runs-on: ubuntu-latest
-    needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: BuildingBlocks
-            project: src/BuildingBlocks/BuildingBlocks.csproj
-          - name: DocumentService
-            project: src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
-          - name: IngestionService
-            project: src/IngestionService/IngestionService.Api/IngestionService.Api.csproj
-          - name: ProcessingService
-            project: src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj
-          - name: EmbeddingService
-            project: src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj
-          - name: IndexingService
-            project: src/IndexingService/IndexingService.Api/IndexingService.Api.csproj
-          - name: SearchService
-            project: src/SearchService/SearchService.Api/SearchService.Api.csproj
-          - name: AgentService
-            project: src/AgentService/AgentService.Api/AgentService.Api.csproj
-          - name: McpGateway
-            project: src/McpGateway/McpGateway.Api/McpGateway.Api.csproj
-          - name: AuditService
-            project: src/AuditService/AuditService.Api/AuditService.Api.csproj
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-      - run: dotnet restore "${{ matrix.project }}"
-      - name: Publish
-        run: dotnet publish "${{ matrix.project }}" --configuration Release --output "./artifacts/${{ matrix.name }}"
-      - name: Package
-        run: tar -czf "./${{ matrix.name }}.tar.gz" -C "./artifacts" "${{ matrix.name }}"
-      - name: Upload service artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: service-${{ matrix.name }}
-          path: ./${{ matrix.name }}.tar.gz
           retention-days: 30
