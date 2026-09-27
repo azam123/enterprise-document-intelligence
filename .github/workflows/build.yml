@@ -79,6 +79,10 @@ jobs:
             assembly="${entry##*|}"
             results="tests/Unit/TestResults/ServiceCoverage/${name}"
             mkdir -p "$results"
+            include="[${assembly}]*"
+            if [ "$name" = "DocumentService" ]; then
+              include="[DocumentService.Api]*,[DocumentService.Application]*,[DocumentService.Domain]*,[DocumentService.Infrastructure]*"
+            fi
             cat > "$results/${name}.runsettings" <<EOF
           <?xml version="1.0" encoding="utf-8"?>
           <RunSettings>
@@ -87,7 +91,7 @@ jobs:
                 <DataCollector friendlyName="XPlat Code Coverage">
                   <Configuration>
                     <Format>cobertura</Format>
-                    <Include>[${assembly}]*</Include>
+                    <Include>${include}</Include>
                     <ExcludeByFile>**/Program.cs,**/Controllers.cs,**/*Controller.cs,**/Worker.cs,**/AzureOpenAiEmbeddingClient.cs,**/McpToolExecutor.cs,**/AgentHarness.cs,**/IndexProvisioner.cs,**/DocumentApplication.cs,**/UploadController.cs,**/ServiceBus.cs,**/ServiceRegistration.cs,**/ExceptionMiddleware.cs,**/DbContext.cs</ExcludeByFile>
                     <ExcludeAssembliesWithoutSources>MissingAll</ExcludeAssembliesWithoutSources>
                     <SkipAutoProps>true</SkipAutoProps>
