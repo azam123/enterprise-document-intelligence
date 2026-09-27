@@ -1,9 +1,9 @@
-name: build
+name: build-test-package
 on: [push,pull_request]
-
+permissions:
+  contents: read
 jobs:
-  build-service:
-    name: Build ${{ matrix.name }}
+  build:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -11,24 +11,34 @@ jobs:
         include:
           - name: BuildingBlocks
             project: src/BuildingBlocks/BuildingBlocks.csproj
+            kind: library
           - name: DocumentService
             project: src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
+            kind: service
           - name: IngestionService
             project: src/IngestionService/IngestionService.Api/IngestionService.Api.csproj
+            kind: service
           - name: ProcessingService
             project: src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj
+            kind: service
           - name: EmbeddingService
             project: src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj
+            kind: service
           - name: IndexingService
             project: src/IndexingService/IndexingService.Api/IndexingService.Api.csproj
+            kind: service
           - name: SearchService
             project: src/SearchService/SearchService.Api/SearchService.Api.csproj
+            kind: service
           - name: AgentService
             project: src/AgentService/AgentService.Api/AgentService.Api.csproj
+            kind: service
           - name: McpGateway
             project: src/McpGateway/McpGateway.Api/McpGateway.Api.csproj
+            kind: service
           - name: AuditService
             project: src/AuditService/AuditService.Api/AuditService.Api.csproj
+            kind: service
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -38,17 +48,43 @@ jobs:
         run: dotnet restore "${{ matrix.project }}"
       - name: Build
         run: dotnet build "${{ matrix.project }}" --configuration Release --no-restore
-
+      - name: Publish service
+        if: matrix.kind == 'service'
+        run: dotnet publish "${{ matrix.project }}" --configuration Release --no-restore --output "artifacts/${{ matrix.name }}"
+      - name: Pack BuildingBlocks
+        if: matrix.kind == 'library'
+        run: dotnet pack "${{ matrix.project }}" --configuration Release --no-restore --output "artifacts/${{ matrix.name }}"
+      - name: Upload service artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: artifacts/${{ matrix.name }}
+          if-no-files-found: error
+          retention-days: 14
   unit-tests:
-    name: Unit tests
     runs-on: ubuntu-latest
-    needs: build-service
+    needs: build
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Restore test project
+      - name: Restore
         run: dotnet restore tests/Unit/Unit.csproj
-      - name: Run unit tests
-        run: dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore --logger "trx;LogFileName=unit-tests.trx"
+      - name: Test with 90 percent line coverage gate
+        run: >
+          dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore
+          /p:CollectCoverage=true
+          /p:CoverletOutputFormat=cobertura
+          /p:CoverletOutput=TestResults/Coverage/
+          /p:Threshold=90
+          /p:ThresholdType=line
+          /p:ThresholdStat=total
+          /p:Exclude="[*]*.Program,[*]*.*Controller,[*]*.Worker,[*]*.ServiceBusClientFactory,[*]*.AzureOpenAiEmbeddingClient,[*]*.AzureOpenAiAgentModel,[*]*.HttpQueryEmbeddingProvider,[*]*.McpToolRouter+SearchMcpHandler,[*]*.McpToolRouter+DocumentMcpHandler,[*]*.McpToolRouter+AuditMcpHandler,[*]*.DocumentApp,[*]*.HybridSearchApplication"
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-coverage
+          path: tests/Unit/TestResults/Coverage/
+          if-no-files-found: error
+          retention-days: 14
