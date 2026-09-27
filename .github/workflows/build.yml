@@ -52,17 +52,66 @@ jobs:
           )
           for project in "${projects[@]}"; do dotnet build "$project" --configuration Release --no-restore; done
 
-      - name: Run unit tests with 90 percent coverage gate
+      - name: Run per-service unit tests with 90 percent coverage gates
         shell: bash
-        run: >
-          dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore
-          --logger "trx;LogFileName=unit-tests.trx"
-          /p:CollectCoverage=true
-          /p:CoverletOutput=./TestResults/Coverage/
-          /p:CoverletOutputFormat=cobertura
-          /p:Threshold=90
-          /p:ThresholdType=line
-          /p:ThresholdStat=total
+        run: |
+          set +e
+          mkdir -p tests/Unit/TestResults/Coverage
+          failures=0
+          services=(
+            "BuildingBlocks|BuildingBlocks"
+            "DocumentService|DocumentService.Api"
+            "IngestionService|IngestionService.Api"
+            "ProcessingService|ProcessingService.Api"
+            "EmbeddingService|EmbeddingService.Api"
+            "IndexingService|IndexingService.Api"
+            "SearchService|SearchService.Api"
+            "AgentService|AgentService.Api"
+            "McpGateway|McpGateway.Api"
+            "AuditService|AuditService.Api"
+          )
+          for entry in "${services[@]}"; do
+            name="${entry%%|*}"
+            assembly="${entry##*|}"
+            echo "===== ${name}: build/test/coverage ====="
+            dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore \
+              --logger "trx;LogFileName=${name}.trx" \
+              /p:CollectCoverage=true \
+              /p:CoverletOutput="./TestResults/Coverage/${name}/" \
+              /p:CoverletOutputFormat=cobertura \
+              /p:Include="[${assembly}]*" \
+              /p:Threshold=90 \
+              /p:ThresholdType=line \
+              /p:ThresholdStat=total
+            status=$?
+            if [ $status -ne 0 ]; then
+              echo "::error::${name} failed its 90% line coverage gate"
+              failures=$((failures+1))
+            fi
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          root=Path("tests/Unit/TestResults/Coverage")
+          lines=["# Per-service coverage report","","| Service | Line coverage | Branch coverage | Status |","|---|---:|---:|---|"]
+          for xml in sorted(root.glob("*/coverage.cobertura.xml")):
+              service=xml.parent.name
+              data=ET.parse(xml).getroot()
+              line=float(data.attrib.get("line-rate","0"))*100
+              branch=float(data.attrib.get("branch-rate","0"))*100
+              status="PASS" if line >= 90 else "FAIL"
+              lines.append(f"| {service} | {line:.2f}% | {branch:.2f}% | {status} |")
+          (root/"coverage-summary.md").write_text("\n".join(lines)+"\n",encoding="utf-8")
+          PY
+          exit $failures
+
+      - name: Upload per-service coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: per-service-coverage
+          path: tests/Unit/TestResults/Coverage/
+          retention-days: 30
 
       - name: Publish BuildingBlocks
         run: dotnet publish src/BuildingBlocks/BuildingBlocks.csproj --configuration Release --output artifacts/BuildingBlocks
