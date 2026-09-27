@@ -110,8 +110,12 @@ jobs:
           import os, sys, xml.etree.ElementTree as ET
           report=os.environ["REPORT"]; service=os.environ["SERVICE"]
           root=ET.parse(report).getroot()
+          valid=int(root.attrib.get("lines-valid","0"))
           line=float(root.attrib.get("line-rate","0"))*100
-          print(f"{service}: line coverage = {line:.2f}%")
+          print(f"{service}: coverable lines = {valid}; line coverage = {line:.2f}%")
+          if valid == 0:
+              print(f"::error::{service} has no measured coverable source lines; coverage is not verified")
+              sys.exit(1)
           if line < 90:
               print(f"::error::{service} is below the required 90% line coverage")
               sys.exit(1)
@@ -126,9 +130,10 @@ jobs:
           for xml in sorted(root.glob("*/coverage.cobertura.xml")):
               service=xml.parent.name
               data=ET.parse(xml).getroot()
+              valid=int(data.attrib.get("lines-valid","0"))
               line=float(data.attrib.get("line-rate","0"))*100
               branch=float(data.attrib.get("branch-rate","0"))*100
-              status="PASS" if line >= 90 else "FAIL"
+              status="PASS" if valid > 0 and line >= 90 else ("NOT MEASURED" if valid == 0 else "FAIL")
               lines.append(f"| {service} | {line:.2f}% | {branch:.2f}% | {status} |")
           (root/"coverage-summary.md").write_text("\n".join(lines)+"\n",encoding="utf-8")
           PY
