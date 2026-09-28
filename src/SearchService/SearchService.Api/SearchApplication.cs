@@ -32,7 +32,8 @@ public sealed class SearchApplication(
         var options = CreateSearchOptions(
             request.TopK,
             user.TenantId,
-            user.UserId);
+            user.UserId,
+            vector);
 
         var response = await client.SearchAsync<SearchDocument>(
             request.Query,
@@ -83,7 +84,8 @@ public sealed class SearchApplication(
     private static SearchOptions CreateSearchOptions(
         int topK,
         Guid tenantId,
-        Guid userId)
+        Guid userId,
+        float[] vector)
     {
         var options = new SearchOptions
         {
@@ -101,7 +103,7 @@ public sealed class SearchApplication(
         {
             Queries =
             {
-                new VectorizedQuery
+                new VectorizedQuery(vector)
                 {
                     KNearestNeighborsCount = topK,
                     Fields = { "ContentVector" }
