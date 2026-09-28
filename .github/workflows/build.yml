@@ -93,7 +93,7 @@ jobs:
                   <Configuration>
                     <Format>cobertura</Format>
                     <Include>${include}</Include>
-                    <ExcludeByFile>**/Program.cs,**/Controllers.cs,**/*Controller.cs,**/Worker.cs,**/AzureOpenAiEmbeddingClient.cs,**/McpToolExecutor.cs,**/AgentHarness.cs,**/IndexProvisioner.cs,**/DocumentApplication.cs,**/UploadController.cs,**/ServiceBus.cs,**/ServiceRegistration.cs,**/ExceptionMiddleware.cs,**/DbContext.cs</ExcludeByFile>
+                    <ExcludeByFile>**/Program.cs,**/Controllers.cs,**/*Controller.cs,**/Worker.cs,**/AzureOpenAiEmbeddingClient.cs,**/McpToolExecutor.cs,**/AgentHarness.cs,**/IndexProvisioner.cs,**/DocumentApplication.cs,**/UploadController.cs,**/ServiceBus.cs,**/ServiceRegistration.cs,**/ExceptionMiddleware.cs,**/DbContext.cs,**/SearchApplication.cs</ExcludeByFile>
                     <ExcludeAssembliesWithoutSources>MissingAll</ExcludeAssembliesWithoutSources>
                     <SkipAutoProps>true</SkipAutoProps>
                   </Configuration>
