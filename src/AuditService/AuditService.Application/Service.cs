@@ -15,14 +15,15 @@ public interface IAuditStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Persists an audit record.
+    /// Attempts to persist an audit record.
     /// </summary>
-    Task AppendAsync(
+    /// <returns><c>true</c> when the record was persisted; otherwise <c>false</c> when it already existed.</returns>
+    Task<bool> AppendAsync(
         AuditRecord record,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves audit records belonging to a tenant, optionally filtered by resource.
+    /// Retrieves audit records belonging to a tenant, optionally filtered by resource and time.
     /// </summary>
     Task<IReadOnlyList<AuditRecord>> QueryAsync(
         Guid tenantId,
@@ -50,9 +51,9 @@ public sealed class AuditApplication(IAuditStore store)
             return false;
         }
 
-        await store.AppendAsync(record, cancellationToken);
-
-        return true;
+        return await store.AppendAsync(
+            record,
+            cancellationToken);
     }
 
     /// <summary>
@@ -66,7 +67,9 @@ public sealed class AuditApplication(IAuditStore store)
     {
         if (tenantId == Guid.Empty)
         {
-            throw new ArgumentException("Tenant id is required.", nameof(tenantId));
+            throw new ArgumentException(
+                "Tenant id is required.",
+                nameof(tenantId));
         }
 
         return store.QueryAsync(
