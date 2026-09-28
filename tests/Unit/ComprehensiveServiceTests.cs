@@ -1,4 +1,6 @@
 using EnterpriseDocumentIntelligence.DocumentService.Api;
+using EnterpriseDocumentIntelligence.AuditService.Application;
+using EnterpriseDocumentIntelligence.AuditService.Infrastructure;
 using EnterpriseDocumentIntelligence.DocumentService.Domain;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -53,7 +55,94 @@ Assert.Equal(4, chunks[0].TokenCount);Assert.Equal(2,SemanticChunker.CountTokens
 
  [Fact] public void IndexDocumentValidator_Enforces_Index_Contract(){var v=new IndexDocumentValidator();v.Validate(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),0,"text",[Guid.NewGuid()],[1f,2f]);Assert.Throws<ArgumentException>(()=>v.Validate(Guid.Empty,Guid.NewGuid(),Guid.NewGuid(),0,"text",[],[1f]));Assert.Throws<ArgumentException>(()=>v.Validate(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),0,"text",[Guid.Empty],[1f]));Assert.Throws<ArgumentException>(()=>v.Validate(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),0,"text",[],[float.NaN]));}
 
- [Fact] public async Task AuditEventProcessor_Is_Idempotent(){var options=new DbContextOptionsBuilder<DocumentDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;await using var db=new DocumentDbContext(options);var p=new AuditEventProcessor(db);var id=Guid.NewGuid();var request=new AuditRequested(id,Guid.NewGuid(),null,"read","Document",Guid.NewGuid(),"Succeeded","corr",null);Assert.True(await p.RecordAsync(request,CancellationToken.None));Assert.False(await p.RecordAsync(request,CancellationToken.None));Assert.Single(db.AuditEvents);}
+ [Fact]
+public async Task AuditEventProcessor_Is_Idempotent()
+{
+    var store = new InMemoryAuditStore();
+    var application = new AuditApplication(store);
+    var processor = new EnterpriseDocumentIntelligence.AuditService.Application.AuditEventProcessor(application);
+    var id = Guid.NewGuid();
+
+    var request = new AuditRequested(
+        id,
+        Guid.NewGuid(),
+        null,
+        "read",
+        "Document",
+        Guid.NewGuid(),
+        "Succeeded",
+        "corr",
+        null);
+
+    Assert.True(await processor.RecordAsync(request));
+    Assert.False(await processor.RecordAsync(request));
+
+    var records = await application.QueryAsync(request.TenantId);
+
+    Assert.Single(records);
+    Assert.Equal(id, records[0].EventId);
+}
+
+[Fact]
+public async Task SqlAuditStore_Persists_And_Queries_Tenant_Records()
+{
+    var options = new DbContextOptionsBuilder<DocumentDbContext>()
+        .UseInMemoryDatabase(Guid.NewGuid().ToString())
+        .Options;
+
+    await using var db = new DocumentDbContext(options);
+    var store = new SqlAuditStore(db);
+    var tenantId = Guid.NewGuid();
+    var resourceId = Guid.NewGuid();
+
+    var record = new EnterpriseDocumentIntelligence.AuditService.Domain.AuditRecord(
+        Guid.NewGuid(),
+        tenantId,
+        Guid.NewGuid(),
+        "read",
+        "Document",
+        resourceId,
+        "Succeeded",
+        DateTimeOffset.UtcNow,
+        "correlation-1",
+        new Dictionary<string, string>
+        {
+            ["source"] = "unit-test"
+        });
+
+    Assert.True(await store.AppendAsync(record));
+    Assert.True(await store.ExistsAsync(record.EventId));
+
+    var results = await store.QueryAsync(
+        tenantId,
+        resourceId);
+
+    var stored = Assert.Single(results);
+    Assert.Equal(record.EventId, stored.EventId);
+    Assert.Equal("unit-test", stored.Metadata["source"]);
+}
+
+[Fact]
+public void AuditEventProcessor_Rejects_Invalid_Metadata()
+{
+    var store = new InMemoryAuditStore();
+    var application = new AuditApplication(store);
+    var processor = new EnterpriseDocumentIntelligence.AuditService.Application.AuditEventProcessor(application);
+
+    var request = new AuditRequested(
+        Guid.NewGuid(),
+        Guid.NewGuid(),
+        null,
+        "read",
+        "Document",
+        null,
+        "Succeeded",
+        null,
+        "[]");
+
+    Assert.ThrowsAsync<ArgumentException>(
+        () => processor.RecordAsync(request));
+}
 
 
 }
