@@ -8,7 +8,7 @@ public sealed class ServiceBusClientFactory(IConfiguration configuration)
     private readonly ServiceBusClient client=!string.IsNullOrWhiteSpace(configuration["ServiceBus:ConnectionString"])?new(configuration["ServiceBus:ConnectionString"]!):new(configuration["ServiceBus:FullyQualifiedNamespace"]!,new Azure.Identity.DefaultAzureCredential());
     public ServiceBusProcessor Create(string topic,string subscription)=>client.CreateProcessor(topic,subscription,new ServiceBusProcessorOptions{MaxConcurrentCalls=4,PrefetchCount=20,AutoCompleteMessages=false});
 }
-public sealed class Worker(ServiceBusClientFactory factory,IMessagePublisher publisher,AzureOpenAiEmbeddingClient embeddings,ILogger<Worker> log):BackgroundService
+public sealed class Worker(ServiceBusClientFactory factory,IMessagePublisher publisher,AzureOpenAiEmbeddingClient embeddings,ILogger<Worker> log,EmbeddingBatchProcessor batchProcessor):BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
