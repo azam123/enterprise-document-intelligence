@@ -1,0 +1,5 @@
+using System.Collections.Concurrent;
+using EnterpriseDocumentIntelligence.ProcessingService.Application; using EnterpriseDocumentIntelligence.ProcessingService.Domain;
+namespace EnterpriseDocumentIntelligence.ProcessingService.Infrastructure;
+public sealed class InMemoryProcessingStore:IProcessingStore{private readonly ConcurrentDictionary<Guid,IReadOnlyList<TextChunk>> _items=new();public Task SaveAsync(Guid id,IReadOnlyList<TextChunk> chunks,CancellationToken ct=default){_items[id]=chunks;return Task.CompletedTask;}public Task<IReadOnlyList<TextChunk>> GetAsync(Guid id,CancellationToken ct=default)=>Task.FromResult(_items.TryGetValue(id,out var x)?x:(IReadOnlyList<TextChunk>)Array.Empty<TextChunk>());}
+public static class ProcessingServiceInfrastructure{public static IServiceCollection AddProcessingApplication(this IServiceCollection services){services.AddSingleton<IProcessingStore,InMemoryProcessingStore>();services.AddScoped<ProcessingApplication>();return services;}}
