@@ -38,6 +38,7 @@ public interface IDocumentRepository
     Task AddAsync(Document document, CancellationToken cancellationToken);
     Task<Document?> GetAsync(Guid tenantId, Guid documentId, CancellationToken cancellationToken);
     Task<Document?> GetWithAclAsync(Guid tenantId, Guid documentId, CancellationToken cancellationToken);
+    Task AddAclAsync(DocumentAcl acl, CancellationToken cancellationToken);
     Task SaveChangesAsync(CancellationToken cancellationToken);
     Task RemoveAclAsync(DocumentAcl acl, CancellationToken cancellationToken);
 }
