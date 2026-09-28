@@ -4,31 +4,87 @@ using System.Text;
 using System.Text.Json;
 using System.Xml.Linq;
 
+/// <summary>
+/// Extracts searchable text from supported document formats.
+/// </summary>
 public interface IDocumentExtractor
 {
-    Task<string> ExtractAsync(Stream content, string contentType, string fileName, CancellationToken cancellationToken);
+    /// <summary>
+    /// Extracts text from a document stream.
+    /// </summary>
+    Task<string> ExtractAsync(
+        Stream content,
+        string contentType,
+        string fileName,
+        CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Extracts text from plain text, Markdown, DOCX, PDF, and legacy Word documents.
+/// </summary>
 public sealed class DocumentExtractor(HttpClient httpClient, IConfiguration configuration) : IDocumentExtractor
 {
     private static readonly HashSet<string> TextTypes = new(StringComparer.OrdinalIgnoreCase) { "text/plain", "text/markdown" };
 
-    public async Task<string> ExtractAsync(Stream content, string contentType, string fileName, CancellationToken cancellationToken)
+    /// <summary>
+    /// Extracts text according to the content type and file extension.
+    /// </summary>
+    public async Task<string> ExtractAsync(
+        Stream content,
+        string contentType,
+        string fileName,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
-        if (TextTypes.Contains(contentType) || Path.GetExtension(fileName).Equals(".txt", StringComparison.OrdinalIgnoreCase))
-            return await new StreamReader(content, Encoding.UTF8, true, 4096, true).ReadToEndAsync(cancellationToken);
-        if (contentType.Equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document", StringComparison.OrdinalIgnoreCase) ||
-            Path.GetExtension(fileName).Equals(".docx", StringComparison.OrdinalIgnoreCase))
+
+        if (TextTypes.Contains(contentType) ||
+            Path.GetExtension(fileName).Equals(
+                ".txt",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return await new StreamReader(
+                content,
+                Encoding.UTF8,
+                true,
+                4096,
+                true).ReadToEndAsync(cancellationToken);
+        }
+
+        if (contentType.Equals(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                StringComparison.OrdinalIgnoreCase) ||
+            Path.GetExtension(fileName).Equals(
+                ".docx",
+                StringComparison.OrdinalIgnoreCase))
+        {
             return ExtractDocx(content);
-        if (contentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase) ||
-            contentType.Equals("application/msword", StringComparison.OrdinalIgnoreCase) ||
-            Path.GetExtension(fileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase) ||
-            Path.GetExtension(fileName).Equals(".doc", StringComparison.OrdinalIgnoreCase))
-            return await ExtractWithDocumentIntelligenceAsync(content, cancellationToken);
-        throw new NotSupportedException($"Unsupported document type '{contentType}'.");
+        }
+
+        if (contentType.Equals(
+                "application/pdf",
+                StringComparison.OrdinalIgnoreCase) ||
+            contentType.Equals(
+                "application/msword",
+                StringComparison.OrdinalIgnoreCase) ||
+            Path.GetExtension(fileName).Equals(
+                ".pdf",
+                StringComparison.OrdinalIgnoreCase) ||
+            Path.GetExtension(fileName).Equals(
+                ".doc",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return await ExtractWithDocumentIntelligenceAsync(
+                content,
+                cancellationToken);
+        }
+
+        throw new NotSupportedException(
+            $"Unsupported document type '{contentType}'.");
     }
 
+    /// <summary>
+    /// Extracts paragraph text directly from a DOCX package.
+    /// </summary>
     private static string ExtractDocx(Stream content)
     {
         using var archive = new ZipArchive(content, ZipArchiveMode.Read, true);
@@ -41,6 +97,9 @@ public sealed class DocumentExtractor(HttpClient httpClient, IConfiguration conf
         return string.Join(Environment.NewLine, paragraphs);
     }
 
+    /// <summary>
+    /// Sends PDF or legacy Word content to Azure AI Document Intelligence and polls the operation.
+    /// </summary>
     private async Task<string> ExtractWithDocumentIntelligenceAsync(Stream content, CancellationToken cancellationToken)
     {
         var endpoint = configuration["Ingestion:DocumentIntelligenceEndpoint"]?.TrimEnd('/') ?? throw new InvalidOperationException("Ingestion:DocumentIntelligenceEndpoint is required.");
@@ -71,8 +130,16 @@ public sealed class DocumentExtractor(HttpClient httpClient, IConfiguration conf
     }
 }
 
-public sealed class BlobIngestionService(BlobServiceClient blobs, IDocumentExtractor extractor)
+/// <summary>
+/// Downloads a source blob, extracts its text, and stores the extracted representation.
+/// </summary>
+public sealed class BlobIngestionService(
+    BlobServiceClient blobs,
+    IDocumentExtractor extractor)
 {
+    /// <summary>
+    /// Extracts a document and stores the text under the tenant/document/version hierarchy.
+    /// </summary>
     public async Task<string> ExtractAndStoreAsync(string blobUri, Guid tenantId, Guid documentId, Guid versionId, string contentType, string fileName, CancellationToken ct)
     {
         var parsed = new Uri(blobUri);
