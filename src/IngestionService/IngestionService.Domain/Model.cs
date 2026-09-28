@@ -1,15 +1,31 @@
 namespace EnterpriseDocumentIntelligence.IngestionService.Domain;
 
+/// <summary>
+/// Represents the lifecycle state of a document ingestion job.
+/// </summary>
 public enum IngestionStatus
 {
+    /// <summary>Job has been created but processing has not started.</summary>
     Pending,
+
+    /// <summary>Document extraction is in progress.</summary>
     Processing,
+
+    /// <summary>Extraction completed and the resulting location was stored.</summary>
     Completed,
+
+    /// <summary>Extraction failed and the error is recorded.</summary>
     Failed
 }
 
+/// <summary>
+/// Tracks ingestion state for one document version.
+/// </summary>
 public sealed class IngestionJob
 {
+    /// <summary>
+    /// Creates a new pending ingestion job.
+    /// </summary>
     public IngestionJob(
         Guid id,
         Guid documentId,
@@ -43,22 +59,33 @@ public sealed class IngestionJob
         CreatedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>Gets the ingestion job identifier.</summary>
     public Guid Id { get; }
 
+    /// <summary>Gets the source document identifier.</summary>
     public Guid DocumentId { get; }
 
+    /// <summary>Gets the tenant owning the document.</summary>
     public string TenantId { get; }
 
+    /// <summary>Gets the current lifecycle status.</summary>
     public IngestionStatus Status { get; private set; }
 
+    /// <summary>Gets the URI containing extracted text when processing succeeds.</summary>
     public string? ExtractedTextLocation { get; private set; }
 
+    /// <summary>Gets the failure reason when processing fails.</summary>
     public string? Error { get; private set; }
 
+    /// <summary>Gets the time at which the job was created.</summary>
     public DateTimeOffset CreatedAt { get; }
 
+    /// <summary>Gets the completion timestamp when processing succeeds.</summary>
     public DateTimeOffset? CompletedAt { get; private set; }
 
+    /// <summary>
+    /// Transitions a pending job into processing.
+    /// </summary>
     public void Start()
     {
         if (Status is not IngestionStatus.Pending)
@@ -71,6 +98,9 @@ public sealed class IngestionJob
         Error = null;
     }
 
+    /// <summary>
+    /// Completes a processing job with the extracted text location.
+    /// </summary>
     public void Complete(string location)
     {
         if (Status is not IngestionStatus.Processing)
@@ -91,6 +121,9 @@ public sealed class IngestionJob
         CompletedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>
+    /// Marks a job as failed and records a safe failure message.
+    /// </summary>
     public void Fail(string error)
     {
         if (Status is IngestionStatus.Completed)
