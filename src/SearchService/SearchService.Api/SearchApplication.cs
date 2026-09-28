@@ -22,7 +22,7 @@ public sealed class SearchApplication(
         SearchRequest request,
         CancellationToken cancellationToken)
     {
-        ValidateRequest(request);
+        request = request with { Query = SearchQueryPolicy.NormalizeQuery(request.Query), TopK = SearchQueryPolicy.NormalizeTopK(request.TopK) };
         EnsureTenant();
 
         var vector = await embeddings.EmbedAsync(
