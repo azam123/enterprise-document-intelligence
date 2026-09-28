@@ -37,7 +37,7 @@ jobs:
         run: dotnet build src/DocumentService/DocumentService.Api/DocumentService.Api.csproj --configuration Release --no-restore
 
       - name: Restore unit tests
-        run: dotnet restore tests/DocumentService/Unit.csproj
+        run: dotnet restore tests/DocumentService/DocumentService.Tests.csproj
 
       - name: Run DocumentService tests with coverage
         shell: bash
@@ -65,7 +65,7 @@ jobs:
           </RunSettings>
           EOF
 
-          dotnet test tests/DocumentService/Unit.csproj             --configuration Release             --no-restore             --settings tests/DocumentService/TestResults/DocumentService/DocumentService.runsettings             --results-directory tests/DocumentService/TestResults/DocumentService             --collect:"XPlat Code Coverage"             --logger "trx;LogFileName=DocumentService.trx"
+          dotnet test tests/DocumentService/DocumentService.Tests.csproj             --configuration Release             --no-restore             --settings tests/DocumentService/TestResults/DocumentService/DocumentService.runsettings             --results-directory tests/DocumentService/TestResults/DocumentService             --collect:"XPlat Code Coverage"             --logger "trx;LogFileName=DocumentService.trx"
 
           report=$(find tests/DocumentService/TestResults/DocumentService -name coverage.cobertura.xml -type f | head -n 1)
           test -n "$report"
