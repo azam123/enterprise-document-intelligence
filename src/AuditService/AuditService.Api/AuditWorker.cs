@@ -38,7 +38,7 @@ public sealed class AuditServiceBusFactory(IConfiguration configuration)
 /// Consumes audit events from Service Bus and persists them through the Application layer.
 /// </summary>
 public sealed class AuditWorker(
-    AuditEventProcessor auditEventProcessor,
+    EnterpriseDocumentIntelligence.AuditService.Application.AuditEventProcessor auditEventProcessor,
     ILogger<AuditWorker> logger,
     AuditServiceBusFactory factory) : BackgroundService
 {
