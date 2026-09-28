@@ -139,13 +139,14 @@ public sealed class DocumentServiceApplication(
 
         if (!exists)
         {
-            document.Acls.Add(
-                new DocumentAcl(
-                    document.Id,
-                    command.PrincipalId,
-                    command.PrincipalType,
-                    command.Permission));
+            var acl = new DocumentAcl(
+                document.Id,
+                command.PrincipalId,
+                command.PrincipalType,
+                command.Permission);
 
+            document.Acls.Add(acl);
+            await repository.AddAclAsync(acl, cancellationToken);
             await repository.SaveChangesAsync(cancellationToken);
         }
 
