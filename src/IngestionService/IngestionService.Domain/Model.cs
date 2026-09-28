@@ -88,10 +88,11 @@ public sealed class IngestionJob
     /// </summary>
     public void Start()
     {
-        if (Status is not IngestionStatus.Pending)
+        if (Status is not IngestionStatus.Pending &&
+            Status is not IngestionStatus.Failed)
         {
             throw new InvalidOperationException(
-                "Only pending jobs can start.");
+                "Only pending or failed jobs can start.");
         }
 
         Status = IngestionStatus.Processing;
