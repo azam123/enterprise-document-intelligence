@@ -1,3 +1,4 @@
+using System.Text.Json;
 public static class McpToolPolicy
 {
     private static readonly HashSet<string> Allowed = new(StringComparer.Ordinal)
