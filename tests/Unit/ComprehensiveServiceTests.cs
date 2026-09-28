@@ -123,7 +123,7 @@ public async Task SqlAuditStore_Persists_And_Queries_Tenant_Records()
 }
 
 [Fact]
-public void AuditEventProcessor_Rejects_Invalid_Metadata()
+public async Task AuditEventProcessor_Rejects_Invalid_Metadata()
 {
     var store = new InMemoryAuditStore();
     var application = new AuditApplication(store);
@@ -140,7 +140,7 @@ public void AuditEventProcessor_Rejects_Invalid_Metadata()
         null,
         "[]");
 
-    Assert.ThrowsAsync<ArgumentException>(
+    await Assert.ThrowsAsync<ArgumentException>(
         () => processor.RecordAsync(request));
 }
 
