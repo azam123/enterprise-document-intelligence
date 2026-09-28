@@ -1,4 +1,3 @@
-using EnterpriseDocumentIntelligence.AuditService.Application;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;
 
 namespace EnterpriseDocumentIntelligence.AuditService.Api;
@@ -8,7 +7,7 @@ namespace EnterpriseDocumentIntelligence.AuditService.Api;
 /// The actual audit processing logic lives in the Application layer.
 /// </summary>
 public sealed class AuditEventProcessor(
-    Application.AuditEventProcessor applicationProcessor)
+    EnterpriseDocumentIntelligence.AuditService.Application.AuditEventProcessor applicationProcessor)
 {
     /// <summary>
     /// Delegates an audit message to the Application layer.
