@@ -1,19 +1,24 @@
-using EnterpriseDocumentIntelligence.BuildingBlocks.Domain;
-using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
-using Microsoft.EntityFrameworkCore;
-public sealed class AuditEventProcessor(DocumentDbContext db)
+using EnterpriseDocumentIntelligence.AuditService.Application;
+using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;
+
+namespace EnterpriseDocumentIntelligence.AuditService.Api;
+
+/// <summary>
+/// Compatibility adapter for callers that still resolve the processor from the API assembly.
+/// The actual audit processing logic lives in the Application layer.
+/// </summary>
+public sealed class AuditEventProcessor(
+    Application.AuditEventProcessor applicationProcessor)
 {
-    public async Task<bool> RecordAsync(AuditRequested request, CancellationToken cancellationToken)
+    /// <summary>
+    /// Delegates an audit message to the Application layer.
+    /// </summary>
+    public Task<bool> RecordAsync(
+        AuditRequested request,
+        CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        if (request.EventId == Guid.Empty) throw new ArgumentException("EventId is required.", nameof(request));
-        if (request.TenantId == Guid.Empty) throw new ArgumentException("TenantId is required.", nameof(request));
-        if (string.IsNullOrWhiteSpace(request.Action)) throw new ArgumentException("Action is required.", nameof(request));
-        if (string.IsNullOrWhiteSpace(request.ResourceType)) throw new ArgumentException("ResourceType is required.", nameof(request));
-        if (string.IsNullOrWhiteSpace(request.Outcome)) throw new ArgumentException("Outcome is required.", nameof(request));
-        if (await db.AuditEvents.AnyAsync(x => x.Id == request.EventId, cancellationToken)) return false;
-        db.AuditEvents.Add(new AuditEvent(request.TenantId, request.ActorId, request.Action, request.ResourceType, request.ResourceId, request.Outcome, request.CorrelationId, request.MetadataJson, request.EventId));
-        await db.SaveChangesAsync(cancellationToken);
-        return true;
+        return applicationProcessor.RecordAsync(
+            request,
+            cancellationToken);
     }
 }
