@@ -5,7 +5,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.IncludeXmlComments(
+        Path.Combine(
+            AppContext.BaseDirectory,
+            "AuditService.Api.xml"));
+});
 builder.Services.AddHealthChecks();
 
 builder.Services.AddBuildingBlocks(
