@@ -1,0 +1,2 @@
+namespace EnterpriseDocumentIntelligence.EmbeddingService.Domain;
+public sealed record EmbeddingVector(Guid DocumentId,int ChunkNumber,IReadOnlyList<float> Values,string Model){public EmbeddingVector{if(DocumentId==Guid.Empty)throw new ArgumentException("Document id is required.");if(ChunkNumber<0)throw new ArgumentOutOfRangeException(nameof(ChunkNumber));if(Values is null||Values.Count==0)throw new ArgumentException("Embedding vector cannot be empty.");if(string.IsNullOrWhiteSpace(Model))throw new ArgumentException("Model is required.");}}
