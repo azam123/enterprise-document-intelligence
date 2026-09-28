@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Concurrent;
 using EnterpriseDocumentIntelligence.IngestionService.Application;
 using EnterpriseDocumentIntelligence.IngestionService.Domain;
