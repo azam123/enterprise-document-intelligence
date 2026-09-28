@@ -32,6 +32,14 @@ public sealed class DocumentRepository(DocumentDbContext db) : IDocumentReposito
                              document.TenantId == tenantId,
                 cancellationToken);
 
+    public Task AddAclAsync(
+        DocumentAcl acl,
+        CancellationToken cancellationToken)
+    {
+        db.DocumentAcls.Add(acl);
+        return Task.CompletedTask;
+    }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>
         db.SaveChangesAsync(cancellationToken);
 
