@@ -1,21 +1,25 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
-using EnterpriseDocumentIntelligence.BuildingBlocks.Domain;
-using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
+using EnterpriseDocumentIntelligence.AuditService.Application;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;
-using Microsoft.EntityFrameworkCore;
 
+namespace EnterpriseDocumentIntelligence.AuditService.Api;
+
+/// <summary>
+/// Creates the Service Bus processor used to consume audit events.
+/// </summary>
 public sealed class AuditServiceBusFactory(IConfiguration configuration)
 {
     private readonly ServiceBusClient client =
-        !string.IsNullOrWhiteSpace(
-            configuration["ServiceBus:ConnectionString"])
-            ? new ServiceBusClient(
-                configuration["ServiceBus:ConnectionString"]!)
+        !string.IsNullOrWhiteSpace(configuration["ServiceBus:ConnectionString"])
+            ? new ServiceBusClient(configuration["ServiceBus:ConnectionString"]!)
             : new ServiceBusClient(
                 configuration["ServiceBus:FullyQualifiedNamespace"]!,
                 new Azure.Identity.DefaultAzureCredential());
 
+    /// <summary>
+    /// Creates the configured audit subscription processor.
+    /// </summary>
     public ServiceBusProcessor Create()
     {
         return client.CreateProcessor(
@@ -30,22 +34,26 @@ public sealed class AuditServiceBusFactory(IConfiguration configuration)
     }
 }
 
+/// <summary>
+/// Consumes audit events from Service Bus and persists them through the Application layer.
+/// </summary>
 public sealed class AuditWorker(
-    AuditServiceBusFactory factory,
-    DocumentDbContext db,
-    ILogger<AuditWorker> log,
-    AuditEventProcessor processor) : BackgroundService
+    AuditEventProcessor auditEventProcessor,
+    ILogger<AuditWorker> logger,
+    AuditServiceBusFactory factory) : BackgroundService
 {
+    /// <summary>
+    /// Starts the Service Bus processor and keeps it active until shutdown.
+    /// </summary>
     protected override async Task ExecuteAsync(
         CancellationToken cancellationToken)
     {
         var processor = factory.Create();
 
-        processor.ProcessMessageAsync += Handle;
-        processor.ProcessErrorAsync += Error;
+        processor.ProcessMessageAsync += HandleMessageAsync;
+        processor.ProcessErrorAsync += HandleErrorAsync;
 
-        await processor.StartProcessingAsync(
-            cancellationToken);
+        await processor.StartProcessingAsync(cancellationToken);
 
         try
         {
@@ -64,27 +72,32 @@ public sealed class AuditWorker(
         }
     }
 
-    private async Task Handle(ProcessMessageEventArgs args)
+    /// <summary>
+    /// Deserializes, validates, persists, and completes one audit message.
+    /// </summary>
+    private async Task HandleMessageAsync(
+        ProcessMessageEventArgs args)
     {
         try
         {
             var auditEvent =
                 JsonSerializer.Deserialize<AuditRequested>(
                     args.Message.Body.ToString(),
-                    new JsonSerializerOptions(
-                        JsonSerializerDefaults.Web))
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web))
                 ?? throw new InvalidDataException(
                     "Invalid audit event.");
 
-            await processor.RecordAsync(auditEvent, args.CancellationToken);
+            await auditEventProcessor.RecordAsync(
+                auditEvent,
+                args.CancellationToken);
 
             await args.CompleteMessageAsync(args.Message);
         }
         catch (Exception exception)
         {
-            log.LogError(
+            logger.LogError(
                 exception,
-                "Audit event processing failed");
+                "Audit event processing failed.");
 
             if (args.Message.DeliveryCount >= 5)
             {
@@ -100,11 +113,14 @@ public sealed class AuditWorker(
         }
     }
 
-    private Task Error(ProcessErrorEventArgs args)
+    /// <summary>
+    /// Logs Service Bus processor errors that occur outside message handling.
+    /// </summary>
+    private Task HandleErrorAsync(ProcessErrorEventArgs args)
     {
-        log.LogError(
+        logger.LogError(
             args.Exception,
-            "Audit Service Bus error");
+            "Audit Service Bus error.");
 
         return Task.CompletedTask;
     }
