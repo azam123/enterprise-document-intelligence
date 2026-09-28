@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Concurrent;
 using EnterpriseDocumentIntelligence.ProcessingService.Application; using EnterpriseDocumentIntelligence.ProcessingService.Domain;
 namespace EnterpriseDocumentIntelligence.ProcessingService.Infrastructure;
