@@ -1,2 +1,46 @@
+using System.Collections.Concurrent;
+
+using EnterpriseDocumentIntelligence.AgentService.Application;
+using EnterpriseDocumentIntelligence.AgentService.Domain;
 using Microsoft.Extensions.DependencyInjection;
-using System.Collections.Concurrent;using EnterpriseDocumentIntelligence.AgentService.Application;using EnterpriseDocumentIntelligence.AgentService.Domain; namespace EnterpriseDocumentIntelligence.AgentService.Infrastructure; public sealed class InMemoryAgentConversationStore:IAgentConversationStore{private readonly ConcurrentDictionary<Guid,AgentConversation> _items=new();public Task<AgentConversation?> GetAsync(Guid id,CancellationToken ct=default)=>Task.FromResult(_items.TryGetValue(id,out var c)?c:null);public Task SaveAsync(AgentConversation c,CancellationToken ct=default){_items[c.Id]=c;return Task.CompletedTask;}} public static class AgentServiceInfrastructure{public static IServiceCollection AddAgentApplication(this IServiceCollection services){services.AddSingleton<IAgentConversationStore,InMemoryAgentConversationStore>();services.AddScoped<AgentApplication>();return services;}}
+
+namespace EnterpriseDocumentIntelligence.AgentService.Infrastructure;
+
+public sealed class InMemoryAgentConversationStore : IAgentConversationStore
+{
+    private readonly ConcurrentDictionary<Guid, AgentConversation> _items = new();
+
+    public Task<AgentConversation?> GetAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(
+            _items.TryGetValue(id, out var conversation)
+                ? conversation
+                : null);
+    }
+
+    public Task SaveAsync(
+        AgentConversation conversation,
+        CancellationToken cancellationToken = default)
+    {
+        _items[conversation.Id] = conversation;
+
+        return Task.CompletedTask;
+    }
+}
+
+public static class AgentServiceInfrastructure
+{
+    public static IServiceCollection AddAgentApplication(
+        this IServiceCollection services)
+    {
+        services.AddSingleton<
+            IAgentConversationStore,
+            InMemoryAgentConversationStore>();
+
+        services.AddScoped<AgentApplication>();
+
+        return services;
+    }
+}
