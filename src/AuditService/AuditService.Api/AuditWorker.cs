@@ -33,7 +33,8 @@ public sealed class AuditServiceBusFactory(IConfiguration configuration)
 public sealed class AuditWorker(
     AuditServiceBusFactory factory,
     DocumentDbContext db,
-    ILogger<AuditWorker> log) : BackgroundService
+    ILogger<AuditWorker> log,
+    AuditEventProcessor processor) : BackgroundService
 {
     protected override async Task ExecuteAsync(
         CancellationToken cancellationToken)
@@ -75,28 +76,7 @@ public sealed class AuditWorker(
                 ?? throw new InvalidDataException(
                     "Invalid audit event.");
 
-            var alreadyProcessed =
-                await db.AuditEvents.AnyAsync(
-                    x => x.Id == auditEvent.EventId,
-                    args.CancellationToken);
-
-            if (!alreadyProcessed)
-            {
-                db.AuditEvents.Add(
-                    new AuditEvent(
-                        auditEvent.TenantId,
-                        auditEvent.ActorId,
-                        auditEvent.Action,
-                        auditEvent.ResourceType,
-                        auditEvent.ResourceId,
-                        auditEvent.Outcome,
-                        auditEvent.CorrelationId,
-                        auditEvent.MetadataJson,
-                        auditEvent.EventId));
-
-                await db.SaveChangesAsync(
-                    args.CancellationToken);
-            }
+            await processor.RecordAsync(auditEvent, args.CancellationToken);
 
             await args.CompleteMessageAsync(args.Message);
         }
