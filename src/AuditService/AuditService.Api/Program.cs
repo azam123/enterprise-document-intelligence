@@ -1,4 +1,4 @@
 using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
 var builder=WebApplication.CreateBuilder(args);
-builder.Services.AddControllers();builder.Services.AddEndpointsApiExplorer();builder.Services.AddSwaggerGen();builder.Services.AddHealthChecks();builder.Services.AddBuildingBlocks(builder.Configuration,"AuditService");builder.Services.AddSingleton<AuditServiceBusFactory>();builder.Services.AddHostedService<AuditWorker>();
+builder.Services.AddControllers();builder.Services.AddEndpointsApiExplorer();builder.Services.AddSwaggerGen();builder.Services.AddHealthChecks();builder.Services.AddBuildingBlocks(builder.Configuration,"AuditService");builder.Services.AddSingleton<AuditEventProcessor>();builder.Services.AddSingleton<AuditServiceBusFactory>();builder.Services.AddHostedService<AuditWorker>();
 var app=builder.Build();app.UseSwagger();app.UseSwaggerUI();app.UseHttpsRedirection();app.UseBuildingBlocks();app.MapControllers();app.MapHealthChecks("/health/live");app.MapHealthChecks("/health/ready");app.Run();
