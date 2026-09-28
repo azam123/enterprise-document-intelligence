@@ -1,2 +1,3 @@
+using Xunit;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Domain;using Xunit;
 public sealed class DocumentDomainTests{[Fact]public void New_document_starts_uploaded(){var d=new Document(Guid.NewGuid(),"a.pdf","application/pdf",100);Assert.Equal("Uploaded",d.Status);Assert.NotEqual(Guid.Empty,d.Id);}[Fact]public void Document_can_move_to_processing_and_ready(){var d=new Document(Guid.NewGuid(),"a.pdf","application/pdf",100);d.MarkProcessing();Assert.Equal("Processing",d.Status);d.MarkReady();Assert.Equal("Ready",d.Status);}[Fact]public void Version_tracks_processing_state(){var v=new DocumentVersion(Guid.NewGuid(),1,"blob://x","abc",10);v.SetStatus("Completed");Assert.Equal("Completed",v.ProcessingStatus);}}
