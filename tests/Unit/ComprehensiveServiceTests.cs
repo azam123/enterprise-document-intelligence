@@ -17,6 +17,61 @@ public sealed class ComprehensiveServiceTests
 {
  [Fact] public void Document_Enforces_Invariants(){var tenant=Guid.NewGuid();Assert.Throws<ArgumentException>(()=>new Document(Guid.Empty,"a","text/plain",1));Assert.Throws<ArgumentException>(()=>new Document(tenant,"","text/plain",1));Assert.Throws<ArgumentOutOfRangeException>(()=>new Document(tenant,"a","text/plain",0));var d=new Document(tenant,"a","text/plain",2);var v=new DocumentVersion(d.Id,1,"blob","sha",2);d.Versions.Add(v);d.SetCurrentVersion(v.Id);d.MarkProcessing();d.MarkReady();Assert.Equal("Ready",d.Status);}
  [Fact] public void Domain_Entities_Validate_Arguments(){var d=Guid.NewGuid();var v=Guid.NewGuid();Assert.Throws<ArgumentException>(()=>new DocumentVersion(Guid.Empty,1,"","",1));Assert.Throws<ArgumentOutOfRangeException>(()=>new DocumentVersion(d,0,"","",1));Assert.Throws<ArgumentException>(()=>new Chunk(Guid.Empty,0,"x",1));Assert.Throws<ArgumentException>(()=>new Chunk(v,0,"",1));Assert.Throws<ArgumentOutOfRangeException>(()=>new Chunk(v,-1,"x",1));Assert.Throws<ArgumentOutOfRangeException>(()=>new Chunk(v,0,"x",0));Assert.Throws<ArgumentException>(()=>new DocumentAcl(Guid.Empty,d,"User","Read"));Assert.Throws<ArgumentException>(()=>new AuditEvent(Guid.Empty,null,"a","r",null,"Succeeded",null,null));}
+ [Fact]
+ public async Task IngestionApplication_Starts_Completes_And_Retries_Failed_Jobs()
+ {
+     var store = new InMemoryIngestionJobStore();
+     var application = new EnterpriseDocumentIntelligence.IngestionService.Application.IngestionApplication(store);
+     var jobId = Guid.NewGuid();
+     var documentId = Guid.NewGuid();
+
+     var job = await application.StartAsync(
+         new EnterpriseDocumentIntelligence.IngestionService.Application.StartIngestionCommand(
+             jobId,
+             documentId,
+             Guid.NewGuid().ToString()));
+
+     Assert.Equal("Processing", job.Status.ToString());
+
+     await application.FailAsync(jobId, "temporary extraction failure");
+     Assert.Equal("Failed", job.Status.ToString());
+
+     var retried = await application.StartAsync(
+         new EnterpriseDocumentIntelligence.IngestionService.Application.StartIngestionCommand(
+             jobId,
+             documentId,
+             job.TenantId));
+
+     Assert.Same(job, retried);
+     Assert.Equal("Processing", retried.Status.ToString());
+
+     await application.CompleteAsync(
+         jobId,
+         "https://storage.example/extracted.txt");
+
+     Assert.Equal("Completed", retried.Status.ToString());
+     Assert.Equal(
+         "https://storage.example/extracted.txt",
+         retried.ExtractedTextLocation);
+ }
+
+ [Fact]
+ public void IngestionJob_Enforces_Lifecycle_Invariants()
+ {
+     var job = new EnterpriseDocumentIntelligence.IngestionService.Domain.IngestionJob(
+         Guid.NewGuid(),
+         Guid.NewGuid(),
+         "tenant");
+
+     Assert.Throws<InvalidOperationException>(() => job.Complete("location"));
+
+     job.Start();
+     job.Complete("location");
+
+     Assert.Throws<InvalidOperationException>(() => job.Start());
+     Assert.Throws<InvalidOperationException>(() => job.Fail("late failure"));
+ }
+
  [Fact] public void ProcessingJob_Lifecycle_Works(){var j=new ProcessingJob(Guid.NewGuid(),"Extraction");j.Start();j.Start();j.Fail("x");Assert.Equal(2,j.Attempts);Assert.Equal("Failed",j.Status);Assert.Equal("x",j.Error);j.Complete();Assert.Equal("Completed",j.Status);}
  [Fact] public void SemanticChunker_Respects_Token_Limit_And_Overlap(){var c=new SemanticChunker();var chunks=c.Chunk("One two three. Four five six. Seven eight nine. Ten eleven twelve.",6,2);Assert.NotEmpty(chunks);Assert.All(chunks,x=>Assert.InRange(x.TokenCount,1,6));Assert.Equal(Enumerable.Range(0,chunks.Count),chunks.Select(x=>x.Number));}
  [Fact] public void SemanticChunker_Handles_Empty_And_Oversized_Input(){var c=new SemanticChunker();Assert.Empty(c.Chunk(""));Assert.Throws<ArgumentOutOfRangeException>(()=>c.Chunk("x",0));Assert.Throws<ArgumentOutOfRangeException>(()=>c.Chunk("x",5,5));var chunks=c.Chunk(string.Join(" ",Enumerable.Repeat("word",13)),5,0);Assert.Equal(3,chunks.Count);Assert.All(chunks,x=>Assert.InRange(x.TokenCount,1,5));}
