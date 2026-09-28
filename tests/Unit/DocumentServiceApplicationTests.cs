@@ -1,3 +1,4 @@
+using Xunit;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Domain;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Security;
