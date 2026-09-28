@@ -1,3 +1,4 @@
+using System.Linq;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;
 using EnterpriseDocumentIntelligence.DocumentService.Application;
 
