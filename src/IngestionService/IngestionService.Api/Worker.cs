@@ -100,12 +100,18 @@ public sealed class Worker(
                     "Invalid DocumentUploaded event.");
             }
 
-            await application.StartAsync(
+            var job = await application.StartAsync(
                 new StartIngestionCommand(
                     message.EventId,
                     message.DocumentId,
                     message.TenantId.ToString()),
                 args.CancellationToken);
+
+            if (job.Status is EnterpriseDocumentIntelligence.IngestionService.Domain.IngestionStatus.Completed)
+            {
+                await args.CompleteMessageAsync(args.Message);
+                return;
+            }
 
             var fileName = Uri.UnescapeDataString(
                 Path.GetFileName(
