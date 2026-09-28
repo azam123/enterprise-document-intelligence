@@ -10,6 +10,56 @@ using Microsoft.Extensions.DependencyInjection;
 namespace EnterpriseDocumentIntelligence.AuditService.Infrastructure;
 
 /// <summary>
+/// Provides an in-memory audit store for unit tests and local development.
+/// </summary>
+public sealed class InMemoryAuditStore : IAuditStore
+{
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, AuditRecord> _items = new();
+
+    /// <summary>
+    /// Determines whether the event has already been stored.
+    /// </summary>
+    public Task<bool> ExistsAsync(
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(_items.ContainsKey(eventId));
+    }
+
+    /// <summary>
+    /// Stores an audit record unless its event ID already exists.
+    /// </summary>
+    public Task<bool> AppendAsync(
+        AuditRecord record,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(
+            _items.TryAdd(record.EventId, record));
+    }
+
+    /// <summary>
+    /// Returns tenant-scoped records using the same filters as the production store.
+    /// </summary>
+    public Task<IReadOnlyList<AuditRecord>> QueryAsync(
+        Guid tenantId,
+        Guid? resourceId = null,
+        DateTimeOffset? from = null,
+        CancellationToken cancellationToken = default)
+    {
+        var records = _items.Values
+            .Where(record =>
+                record.TenantId == tenantId &&
+                (!resourceId.HasValue || record.ResourceId == resourceId.Value) &&
+                (!from.HasValue || record.OccurredAt >= from.Value))
+            .OrderByDescending(record => record.OccurredAt)
+            .ToList();
+
+        return Task.FromResult(
+            (IReadOnlyList<AuditRecord>)records);
+    }
+}
+
+/// <summary>
 /// Persists audit records in the shared SQL Server database.
 /// </summary>
 public sealed class SqlAuditStore(DocumentDbContext db) : IAuditStore
