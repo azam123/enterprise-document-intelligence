@@ -24,7 +24,7 @@ public sealed record AuditRequest(
 [Route("api/v1/audit")]
 [Authorize(Roles = Roles.Administrator)]
 public sealed class AuditController(
-    AuditEventProcessor auditEventProcessor,
+    EnterpriseDocumentIntelligence.AuditService.Application.AuditEventProcessor auditEventProcessor,
     AuditApplication auditApplication,
     ICurrentUser user,
     ILogger<AuditController> logger) : ControllerBase
