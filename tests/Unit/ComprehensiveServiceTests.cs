@@ -1,3 +1,4 @@
+using EnterpriseDocumentIntelligence.DocumentService.Api;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using System.IO.Compression;
