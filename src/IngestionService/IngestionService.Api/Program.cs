@@ -1,3 +1,5 @@
+builder.Services.AddIngestionServiceApplication();
+using EnterpriseDocumentIntelligence.IngestionService.Infrastructure;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
