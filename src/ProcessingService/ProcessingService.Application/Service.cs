@@ -1,0 +1,4 @@
+using EnterpriseDocumentIntelligence.ProcessingService.Domain;
+namespace EnterpriseDocumentIntelligence.ProcessingService.Application;
+public interface IProcessingStore { Task SaveAsync(Guid documentId,IReadOnlyList<TextChunk> chunks,CancellationToken ct=default); Task<IReadOnlyList<TextChunk>> GetAsync(Guid documentId,CancellationToken ct=default); }
+public sealed class ProcessingApplication(IProcessingStore store){ public async Task<IReadOnlyList<TextChunk>> ProcessAsync(Guid documentId,string tenantId,string text,int maxCharacters=2000,CancellationToken ct=default){var chunks=new ProcessingDocument(documentId,tenantId,text).CreateChunks(maxCharacters);await store.SaveAsync(documentId,chunks,ct);return chunks;} }
