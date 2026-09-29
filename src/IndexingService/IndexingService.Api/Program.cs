@@ -1,12 +1,34 @@
-using EnterpriseDocumentIntelligence.IndexingService.Infrastructure;
 using Azure;
 using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
-var builder=Host.CreateApplicationBuilder(args);
-builder.Services.AddBuildingBlocks(builder.Configuration,"IndexingService");builder.Services.AddIndexingServiceApplication();
-builder.Services.AddSingleton(sp=>{var c=sp.GetRequiredService<IConfiguration>();var endpoint=c["AzureSearch:Endpoint"]??throw new InvalidOperationException("AzureSearch:Endpoint missing");var key=c["AzureSearch:ApiKey"];return string.IsNullOrWhiteSpace(key)?new SearchIndexClient(new Uri(endpoint),new DefaultAzureCredential()):new SearchIndexClient(new Uri(endpoint),new AzureKeyCredential(key));});
-builder.Services.AddSingleton(sp=>{var c=sp.GetRequiredService<IConfiguration>();var endpoint=c["AzureSearch:Endpoint"]??throw new InvalidOperationException("AzureSearch:Endpoint missing");var index=c["AzureSearch:IndexName"]??"document-chunks";var key=c["AzureSearch:ApiKey"];return string.IsNullOrWhiteSpace(key)?new SearchClient(new Uri(endpoint),index,new DefaultAzureCredential()):new SearchClient(new Uri(endpoint),index,new AzureKeyCredential(key));});
-builder.Services.AddSingleton<IndexDocumentValidator>();builder.Services.AddSingleton<IndexProvisioner>();builder.Services.AddSingleton<ServiceBusClientFactory>();builder.Services.AddHostedService<Worker>();
+using EnterpriseDocumentIntelligence.IndexingService.Infrastructure;
+
+var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddBuildingBlocks(builder.Configuration, "IndexingService");
+builder.Services.AddIndexingApplication();
+builder.Services.AddSingleton(sp =>
+{
+    var c = sp.GetRequiredService<IConfiguration>();
+    var endpoint = c["AzureSearch:Endpoint"] ?? throw new InvalidOperationException("AzureSearch:Endpoint missing");
+    var key = c["AzureSearch:ApiKey"];
+    return string.IsNullOrWhiteSpace(key)
+        ? new SearchIndexClient(new Uri(endpoint), new DefaultAzureCredential())
+        : new SearchIndexClient(new Uri(endpoint), new AzureKeyCredential(key));
+});
+builder.Services.AddSingleton(sp =>
+{
+    var c = sp.GetRequiredService<IConfiguration>();
+    var endpoint = c["AzureSearch:Endpoint"] ?? throw new InvalidOperationException("AzureSearch:Endpoint missing");
+    var index = c["AzureSearch:IndexName"] ?? "document-chunks";
+    var key = c["AzureSearch:ApiKey"];
+    return string.IsNullOrWhiteSpace(key)
+        ? new SearchClient(new Uri(endpoint), index, new DefaultAzureCredential())
+        : new SearchClient(new Uri(endpoint), index, new AzureKeyCredential(key));
+});
+builder.Services.AddSingleton<IndexDocumentValidator>();
+builder.Services.AddSingleton<IndexProvisioner>();
+builder.Services.AddSingleton<ServiceBusClientFactory>();
+builder.Services.AddHostedService<Worker>();
 await builder.Build().RunAsync();
