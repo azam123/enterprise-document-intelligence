@@ -1,26 +1,19 @@
 namespace EnterpriseDocumentIntelligence.SearchService.Domain;
 
-public sealed record SearchQuery(
-    string TenantId,
-    string Query,
-    int TopK = 10)
+public sealed record SearchQuery
 {
-    public SearchQuery
+    public string TenantId { get; init; }
+    public string Query { get; init; }
+    public int TopK { get; init; }
+
+    public SearchQuery(string tenantId, string query, int topK = 10)
     {
-        if (string.IsNullOrWhiteSpace(TenantId))
-        {
-            throw new ArgumentException("Tenant is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(Query))
-        {
-            throw new ArgumentException("Query is required.");
-        }
-
-        if (TopK is < 1 or > 100)
-        {
-            throw new ArgumentOutOfRangeException(nameof(TopK));
-        }
+        if (string.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant is required.", nameof(tenantId));
+        if (string.IsNullOrWhiteSpace(query)) throw new ArgumentException("Query is required.", nameof(query));
+        if (topK is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(topK));
+        TenantId = tenantId;
+        Query = query;
+        TopK = topK;
     }
 }
 
