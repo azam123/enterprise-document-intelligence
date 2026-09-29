@@ -1,5 +1,22 @@
 using EnterpriseDocumentIntelligence.McpGateway.Infrastructure;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
-var builder=WebApplication.CreateBuilder(args);
-builder.Services.AddControllers();builder.Services.AddEndpointsApiExplorer();builder.Services.AddSwaggerGen();builder.Services.AddHealthChecks();builder.Services.AddHttpClient();builder.Services.AddBuildingBlocks(builder.Configuration,"McpGateway");builder.Services.AddMcpGatewayApplication();builder.Services.AddScoped<IMcpToolExecutor,McpToolExecutor>();
-var app=builder.Build();app.UseSwagger();app.UseSwaggerUI();app.UseHttpsRedirection();app.UseBuildingBlocks();app.MapControllers();app.MapHealthChecks("/health/live");app.MapHealthChecks("/health/ready");app.Run();
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddHealthChecks();
+builder.Services.AddHttpClient();
+builder.Services.AddBuildingBlocks(builder.Configuration, "McpGateway");
+builder.Services.AddMcpApplication();
+builder.Services.AddScoped<IMcpToolExecutor, McpToolExecutor>();
+
+var app = builder.Build();
+app.UseSwagger();
+app.UseSwaggerUI();
+app.UseHttpsRedirection();
+app.UseBuildingBlocks();
+app.MapControllers();
+app.MapHealthChecks("/health/live");
+app.MapHealthChecks("/health/ready");
+app.Run();
