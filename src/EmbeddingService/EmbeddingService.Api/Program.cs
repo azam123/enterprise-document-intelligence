@@ -1,2 +1,11 @@
 using EnterpriseDocumentIntelligence.EmbeddingService.Infrastructure;
-using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;var builder=Host.CreateApplicationBuilder(args);builder.Services.AddHttpClient<AzureOpenAiEmbeddingClient>(c=>c.Timeout=TimeSpan.FromSeconds(30));builder.Services.AddBuildingBlocks(builder.Configuration,"EmbeddingService");builder.Services.AddEmbeddingServiceApplication();builder.Services.AddSingleton<EmbeddingBatchProcessor>();builder.Services.AddSingleton<ServiceBusClientFactory>();builder.Services.AddHostedService<Worker>();await builder.Build().RunAsync();
+using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
+
+var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddHttpClient<AzureOpenAiEmbeddingClient>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddBuildingBlocks(builder.Configuration, "EmbeddingService");
+builder.Services.AddEmbeddingApplication();
+builder.Services.AddSingleton<EmbeddingBatchProcessor>();
+builder.Services.AddSingleton<ServiceBusClientFactory>();
+builder.Services.AddHostedService<Worker>();
+await builder.Build().RunAsync();
