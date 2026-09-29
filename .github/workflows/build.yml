@@ -1,11 +1,14 @@
 name: build-and-publish
-# Main-branch verification pipeline
 on:
   push:
   pull_request:
 
 permissions:
   contents: read
+
+env:
+  DOTNET_VERSION: 8.0.x
+  COVERAGE_THRESHOLD: "90"
 
 jobs:
   verify-publish:
@@ -15,53 +18,87 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Restore all projects
+        id: restore
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
+          set +e
+          mkdir -p tests/Unit/TestResults/Verification
+          echo "Service,Status" > tests/Unit/TestResults/Verification/restore.csv
+          failures=0
           projects=(
-            src/BuildingBlocks/BuildingBlocks.csproj
-            src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
-            src/IngestionService/IngestionService.Api/IngestionService.Api.csproj
-            src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj
-            src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj
-            src/IndexingService/IndexingService.Api/IndexingService.Api.csproj
-            src/SearchService/SearchService.Api/SearchService.Api.csproj
-            src/AgentService/AgentService.Api/AgentService.Api.csproj
-            src/McpGateway/McpGateway.Api/McpGateway.Api.csproj
-            src/AuditService/AuditService.Api/AuditService.Api.csproj
+            "BuildingBlocks|src/BuildingBlocks/BuildingBlocks.csproj"
+            "DocumentService|src/DocumentService/DocumentService.Api/DocumentService.Api.csproj"
+            "IngestionService|src/IngestionService/IngestionService.Api/IngestionService.Api.csproj"
+            "ProcessingService|src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj"
+            "EmbeddingService|src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj"
+            "IndexingService|src/IndexingService/IndexingService.Api/IndexingService.Api.csproj"
+            "SearchService|src/SearchService/SearchService.Api/SearchService.Api.csproj"
+            "AgentService|src/AgentService/AgentService.Api/AgentService.Api.csproj"
+            "McpGateway|src/McpGateway/McpGateway.Api/McpGateway.Api.csproj"
+            "AuditService|src/AuditService/AuditService.Api/AuditService.Api.csproj"
           )
-          for project in "${projects[@]}"; do dotnet restore "$project"; done
+          for entry in "${projects[@]}"; do
+            name="${entry%%|*}"; project="${entry##*|}"
+            echo "===== RESTORE: ${name} ====="
+            dotnet restore "$project"
+            status=$?
+            if [ $status -eq 0 ]; then echo "${name},PASS" >> tests/Unit/TestResults/Verification/restore.csv; else echo "${name},FAIL" >> tests/Unit/TestResults/Verification/restore.csv; failures=$((failures+1)); fi
+          done
+          echo "$failures" > tests/Unit/TestResults/Verification/restore-failures.txt
+          exit $failures
 
       - name: Build all services
+        id: build
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
+          set +e
+          mkdir -p tests/Unit/TestResults/Verification
+          echo "Service,Status" > tests/Unit/TestResults/Verification/build.csv
+          failures=0
           projects=(
-            src/BuildingBlocks/BuildingBlocks.csproj
-            src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
-            src/IngestionService/IngestionService.Api/IngestionService.Api.csproj
-            src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj
-            src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj
-            src/IndexingService/IndexingService.Api/IndexingService.Api.csproj
-            src/SearchService/SearchService.Api/SearchService.Api.csproj
-            src/AgentService/AgentService.Api/AgentService.Api.csproj
-            src/McpGateway/McpGateway.Api/McpGateway.Api.csproj
-            src/AuditService/AuditService.Api/AuditService.Api.csproj
+            "BuildingBlocks|src/BuildingBlocks/BuildingBlocks.csproj"
+            "DocumentService|src/DocumentService/DocumentService.Api/DocumentService.Api.csproj"
+            "IngestionService|src/IngestionService/IngestionService.Api/IngestionService.Api.csproj"
+            "ProcessingService|src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj"
+            "EmbeddingService|src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj"
+            "IndexingService|src/IndexingService/IndexingService.Api/IndexingService.Api.csproj"
+            "SearchService|src/SearchService/SearchService.Api/SearchService.Api.csproj"
+            "AgentService|src/AgentService/AgentService.Api/AgentService.Api.csproj"
+            "McpGateway|src/McpGateway/McpGateway.Api/McpGateway.Api.csproj"
+            "AuditService|src/AuditService/AuditService.Api/AuditService.Api.csproj"
           )
-          for project in "${projects[@]}"; do dotnet build "$project" --configuration Release --no-restore; done
+          for entry in "${projects[@]}"; do
+            name="${entry%%|*}"; project="${entry##*|}"
+            echo "===== BUILD: ${name} ====="
+            dotnet build "$project" --configuration Release --no-restore
+            status=$?
+            if [ $status -eq 0 ]; then echo "${name},PASS" >> tests/Unit/TestResults/Verification/build.csv; else echo "${name},FAIL" >> tests/Unit/TestResults/Verification/build.csv; failures=$((failures+1)); fi
+          done
+          echo "$failures" > tests/Unit/TestResults/Verification/build-failures.txt
+          exit $failures
 
-      - name: Restore unit-test project
-        run: dotnet restore tests/Unit/Unit.csproj
+      - name: Build unit-test project
+        id: testbuild
+        continue-on-error: true
+        shell: bash
+        run: |
+          dotnet build tests/Unit/Unit.csproj --configuration Release --no-restore
+          echo "$?" > tests/Unit/TestResults/Verification/unit-test-build-exit.txt
 
-      - name: Run per-service unit tests and enforce 90 percent line coverage
+      - name: Run unit tests and measure per-service coverage
+        id: tests
+        continue-on-error: true
         shell: bash
         run: |
           set +e
           rm -rf tests/Unit/TestResults/ServiceCoverage
           mkdir -p tests/Unit/TestResults/ServiceCoverage
+          echo "Service,Status,Total,Passed,Failed,Skipped,LineCoverage,BranchCoverage" > tests/Unit/TestResults/Verification/tests.csv
           failures=0
           services=(
             "BuildingBlocks|BuildingBlocks"
@@ -76,14 +113,11 @@ jobs:
             "AuditService|AuditService.Api"
           )
           for entry in "${services[@]}"; do
-            name="${entry%%|*}"
-            assembly="${entry##*|}"
+            name="${entry%%|*}"; assembly="${entry##*|}"
             results="tests/Unit/TestResults/ServiceCoverage/${name}"
             mkdir -p "$results"
             include="[${assembly}]*"
-            if [ "$name" = "DocumentService" ]; then
-              include="[DocumentService.Api]*,[DocumentService.Application]*,[DocumentService.Domain]*,[DocumentService.Infrastructure]*"
-            fi
+            if [ "$name" = "DocumentService" ]; then include="[DocumentService.Api]*,[DocumentService.Application]*,[DocumentService.Domain]*,[DocumentService.Infrastructure]*"; fi
             cat > "$results/${name}.runsettings" <<EOF
           <?xml version="1.0" encoding="utf-8"?>
           <RunSettings>
@@ -98,134 +132,131 @@ jobs:
                     <SkipAutoProps>true</SkipAutoProps>
                   </Configuration>
                 </DataCollector>
-              </DataCollectors>
-            </DataCollectionRunSettings>
+              </DataCollectionRunSettings>
+            </DataCollectors>
           </RunSettings>
           EOF
-            echo "===== ${name}: unit tests + real coverage ====="
-            dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore --settings "$results/${name}.runsettings" --results-directory "$results" --collect:"XPlat Code Coverage" --logger "trx;LogFileName=${name}.trx"
-            status=$?
+            echo "===== TEST + COVERAGE: ${name} ====="
+            dotnet test tests/Unit/Unit.csproj --configuration Release --no-build --no-restore --settings "$results/${name}.runsettings" --results-directory "$results" --collect:"XPlat Code Coverage" --logger "trx;LogFileName=${name}.trx"
+            test_status=$?
             report=$(find "$results" -name coverage.cobertura.xml -type f | head -n 1)
-            if [ -z "$report" ]; then
-              echo "::error::${name} did not produce a Cobertura coverage report"
-              failures=$((failures+1))
-              continue
+            trx="$results/${name}.trx"
+            total=0; passed=0; failed=0; skipped=0; line=0; branch=0
+            if [ -f "$trx" ]; then
+              read total passed failed skipped < <(python3 - "$trx" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          c=ET.parse(sys.argv[1]).getroot().find(".//{*}Counters")
+          print((c.attrib.get("total","0"),c.attrib.get("passed","0"),c.attrib.get("failed","0"),c.attrib.get("notExecuted","0")) if c is not None else ("0","0","0","0"))
+          PY
+              )
             fi
-            REPORT="$report" SERVICE="$name" python3 - <<'PY'
-          import os, sys, xml.etree.ElementTree as ET
-          report=os.environ["REPORT"]; service=os.environ["SERVICE"]
-          root=ET.parse(report).getroot()
-          valid=int(root.attrib.get("lines-valid","0"))
-          line=float(root.attrib.get("line-rate","0"))*100
-          print(f"{service}: coverable lines = {valid}; line coverage = {line:.2f}%")
-          if valid == 0:
-              print(f"::error::{service} has no measured coverable source lines; coverage is not verified")
-              sys.exit(1)
-          if line < 90:
-              print(f"::error::{service} is below the required 90% line coverage")
-              sys.exit(1)
+            if [ -n "$report" ]; then
+              read line branch < <(python3 - "$report" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          r=ET.parse(sys.argv[1]).getroot()
+          print(f"{float(r.attrib.get('line-rate','0'))*100:.2f} {float(r.attrib.get('branch-rate','0'))*100:.2f}")
           PY
-            if [ $? -ne 0 ]; then failures=$((failures+1)); fi
+              )
+            fi
+            valid=0
+            if [ -n "$report" ]; then valid=$(python3 - "$report" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          print(ET.parse(sys.argv[1]).getroot().attrib.get("lines-valid","0"))
+          PY
+            ); fi
+            status="PASS"
+            if [ $test_status -ne 0 ] || [ -z "$report" ] || [ "$valid" = "0" ] || [ "${line%.*}" -lt "$COVERAGE_THRESHOLD" ]; then status="FAIL"; fi
+            if [ "$status" != "PASS" ]; then failures=$((failures+1)); fi
+            echo "${name},${status},${total},${passed},${failed},${skipped},${line},${branch}" >> tests/Unit/TestResults/Verification/tests.csv
           done
-          python3 - <<'PY'
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-          root=Path("tests/Unit/TestResults/ServiceCoverage")
-          lines=["# Per-service coverage report","","| Service | Line coverage | Branch coverage | Status |","|---|---:|---:|---|"]
-          for xml in sorted(root.glob("*/coverage.cobertura.xml")):
-              service=xml.parent.name
-              data=ET.parse(xml).getroot()
-              valid=int(data.attrib.get("lines-valid","0"))
-              line=float(data.attrib.get("line-rate","0"))*100
-              branch=float(data.attrib.get("branch-rate","0"))*100
-              status="PASS" if valid > 0 and line >= 90 else ("NOT MEASURED" if valid == 0 else "FAIL")
-              lines.append(f"| {service} | {line:.2f}% | {branch:.2f}% | {status} |")
-          (root/"coverage-summary.md").write_text("\n".join(lines)+"\n",encoding="utf-8")
-          PY
+          echo "$failures" > tests/Unit/TestResults/Verification/test-failures.txt
           exit $failures
 
-      - name: Upload per-service coverage reports
+      - name: Generate comprehensive verification report
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from datetime import datetime, timezone
+          import csv
+          root=Path("tests/Unit/TestResults/Verification")
+          services=["BuildingBlocks","DocumentService","IngestionService","ProcessingService","EmbeddingService","IndexingService","SearchService","AgentService","McpGateway","AuditService"]
+          def read(name):
+              p=root/name
+              if not p.exists(): return {}
+              with p.open(newline="",encoding="utf-8") as f: return {x["Service"]:x for x in csv.DictReader(f)}
+          builds=read("build.csv"); tests=read("tests.csv")
+          report=["# Enterprise Document Intelligence - Comprehensive Build & Test Report","",
+                  f"Generated: {datetime.now(timezone.utc).isoformat()}","",
+                  "## Verification scope","",
+                  "- .NET 8 Release restore/build for all ten services.",
+                  "- Unit.csproj build.",
+                  "- Shared unit-test suite executed once for each service coverage filter.",
+                  "- Coverage is source-filtered per service.",
+                  "- Required line coverage gate: 90%.","",
+                  "## Service verification matrix","",
+                  "| Service | Build | Unit tests | Total | Passed | Failed | Skipped | Line coverage | Branch coverage |",
+                  "|---|---|---|---:|---:|---:|---:|---:|---:|"]
+          for s in services:
+              b=builds.get(s,{}).get("Status","NOT RUN")
+              t=tests.get(s,{})
+              report.append("| "+" | ".join([s,b,t.get("Status","NOT RUN"),t.get("Total","0"),t.get("Passed","0"),t.get("Failed","0"),t.get("Skipped","0"),t.get("LineCoverage","0")+"%",t.get("BranchCoverage","0")+"%"])+" |")
+          report += ["","## Notes","",
+                     "- Build status is service-specific.",
+                     "- Unit tests come from the shared tests/Unit/Unit.csproj; therefore the test count is repeated across service coverage runs.",
+                     "- Coverage is attributable to each service's included assemblies and is not a claim that every source file is included.",
+                     "- Excluded infrastructure/entry-point files are explicitly listed in build.yml.",
+                     ""]
+          p=root/"comprehensive-verification-report.md"; p.write_text("\n".join(report),encoding="utf-8")
+          print(p.read_text())
+          PY
+          cat tests/Unit/TestResults/Verification/comprehensive-verification-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload comprehensive verification report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: per-service-coverage
-          path: tests/Unit/TestResults/ServiceCoverage/
-          retention-days: 30
-
-      - name: Publish BuildingBlocks
-        run: dotnet publish src/BuildingBlocks/BuildingBlocks.csproj --configuration Release --output artifacts/BuildingBlocks
-      - name: Package BuildingBlocks
-        run: tar -czf BuildingBlocks.tar.gz -C artifacts BuildingBlocks
-      - name: Publish DocumentService
-        run: dotnet publish src/DocumentService/DocumentService.Api/DocumentService.Api.csproj --configuration Release --output artifacts/DocumentService
-      - name: Package DocumentService
-        run: tar -czf DocumentService.tar.gz -C artifacts DocumentService
-      - name: Publish IngestionService
-        run: dotnet publish src/IngestionService/IngestionService.Api/IngestionService.Api.csproj --configuration Release --output artifacts/IngestionService
-      - name: Package IngestionService
-        run: tar -czf IngestionService.tar.gz -C artifacts IngestionService
-      - name: Publish ProcessingService
-        run: dotnet publish src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj --configuration Release --output artifacts/ProcessingService
-      - name: Package ProcessingService
-        run: tar -czf ProcessingService.tar.gz -C artifacts ProcessingService
-      - name: Publish EmbeddingService
-        run: dotnet publish src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj --configuration Release --output artifacts/EmbeddingService
-      - name: Package EmbeddingService
-        run: tar -czf EmbeddingService.tar.gz -C artifacts EmbeddingService
-      - name: Publish IndexingService
-        run: dotnet publish src/IndexingService/IndexingService.Api/IndexingService.Api.csproj --configuration Release --output artifacts/IndexingService
-      - name: Package IndexingService
-        run: tar -czf IndexingService.tar.gz -C artifacts IndexingService
-      - name: Publish SearchService
-        run: dotnet publish src/SearchService/SearchService.Api/SearchService.Api.csproj --configuration Release --output artifacts/SearchService
-      - name: Package SearchService
-        run: tar -czf SearchService.tar.gz -C artifacts SearchService
-      - name: Publish AgentService
-        run: dotnet publish src/AgentService/AgentService.Api/AgentService.Api.csproj --configuration Release --output artifacts/AgentService
-      - name: Package AgentService
-        run: tar -czf AgentService.tar.gz -C artifacts AgentService
-      - name: Publish McpGateway
-        run: dotnet publish src/McpGateway/McpGateway.Api/McpGateway.Api.csproj --configuration Release --output artifacts/McpGateway
-      - name: Package McpGateway
-        run: tar -czf McpGateway.tar.gz -C artifacts McpGateway
-      - name: Publish AuditService
-        run: dotnet publish src/AuditService/AuditService.Api/AuditService.Api.csproj --configuration Release --output artifacts/AuditService
-      - name: Package AuditService
-        run: tar -czf AuditService.tar.gz -C artifacts AuditService
-
-      - name: Upload BuildingBlocks artifact
-        uses: actions/upload-artifact@v4
-        with: {name: service-BuildingBlocks, path: BuildingBlocks.tar.gz, retention-days: 30}
-      - name: Upload DocumentService artifact
-        uses: actions/upload-artifact@v4
-        with: {name: service-DocumentService, path: DocumentService.tar.gz, retention-days: 30}
-      - name: Upload IngestionService artifact
-        uses: actions/upload-artifact@v4
-        with: {name: service-IngestionService, path: IngestionService.tar.gz, retention-days: 30}
-      - name: Upload ProcessingService artifact
-        uses: actions/upload-artifact@v4
-        with: {name: service-ProcessingService, path: ProcessingService.tar.gz, retention-days: 30}
-      - name: Upload EmbeddingService artifact
-        uses: actions/upload-artifact@v4
-        with: {name: service-EmbeddingService, path: EmbeddingService.tar.gz, retention-days: 30}
-      - name: Upload IndexingService artifact
-        uses: actions/upload-artifact@v4
-        with: {name: service-IndexingService, path: IndexingService.tar.gz, retention-days: 30}
-      - name: Upload SearchService artifact
-        uses: actions/upload-artifact@v4
-        with: {name: service-SearchService, path: SearchService.tar.gz, retention-days: 30}
-      - name: Upload AgentService artifact
-        uses: actions/upload-artifact@v4
-        with: {name: service-AgentService, path: AgentService.tar.gz, retention-days: 30}
-      - name: Upload McpGateway artifact
-        uses: actions/upload-artifact@v4
-        with: {name: service-McpGateway, path: McpGateway.tar.gz, retention-days: 30}
-      - name: Upload AuditService artifact
-        uses: actions/upload-artifact@v4
-        with: {name: service-AuditService, path: AuditService.tar.gz, retention-days: 30}
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-coverage
+          name: comprehensive-verification-report
           path: tests/Unit/TestResults/
           retention-days: 30
+
+      - name: Publish services
+        if: steps.restore.outcome == 'success' && steps.build.outcome == 'success' && steps.testbuild.outcome == 'success' && steps.tests.outcome == 'success'
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          dotnet publish src/BuildingBlocks/BuildingBlocks.csproj --configuration Release --output artifacts/BuildingBlocks
+          dotnet publish src/DocumentService/DocumentService.Api/DocumentService.Api.csproj --configuration Release --output artifacts/DocumentService
+          dotnet publish src/IngestionService/IngestionService.Api/IngestionService.Api.csproj --configuration Release --output artifacts/IngestionService
+          dotnet publish src/ProcessingService/ProcessingService.Api/ProcessingService.Api.csproj --configuration Release --output artifacts/ProcessingService
+          dotnet publish src/EmbeddingService/EmbeddingService.Api/EmbeddingService.Api.csproj --configuration Release --output artifacts/EmbeddingService
+          dotnet publish src/IndexingService/IndexingService.Api/IndexingService.Api.csproj --configuration Release --output artifacts/IndexingService
+          dotnet publish src/SearchService/SearchService.Api/SearchService.Api.csproj --configuration Release --output artifacts/SearchService
+          dotnet publish src/AgentService/AgentService.Api/AgentService.Api.csproj --configuration Release --output artifacts/AgentService
+          dotnet publish src/McpGateway/McpGateway.Api/McpGateway.Api.csproj --configuration Release --output artifacts/McpGateway
+          dotnet publish src/AuditService/AuditService.Api/AuditService.Api.csproj --configuration Release --output artifacts/AuditService
+
+      - name: Upload publish artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-publish-artifacts
+          path: artifacts/
+          retention-days: 30
+
+      - name: Fail workflow when verification is incomplete
+        if: always()
+        shell: bash
+        run: |
+          set -e
+          for f in restore-failures.txt build-failures.txt test-failures.txt; do
+            if [ -f "tests/Unit/TestResults/Verification/$f" ] && [ "$(cat "tests/Unit/TestResults/Verification/$f")" != "0" ]; then
+              echo "::error::$f reports $(cat "tests/Unit/TestResults/Verification/$f") failure(s)"
+              exit 1
+            fi
+          done
+          if [ -f tests/Unit/TestResults/Verification/unit-test-build-exit.txt ] && [ "$(cat tests/Unit/TestResults/Verification/unit-test-build-exit.txt)" != "0" ]; then
+            echo "::error::Unit-test project build failed"
+            exit 1
+          fi
