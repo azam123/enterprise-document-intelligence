@@ -254,6 +254,13 @@ jobs:
           for f in restore-failures.txt build-failures.txt test-failures.txt; do
             if [ -f "tests/Unit/TestResults/Verification/$f" ] && [ "$(cat "tests/Unit/TestResults/Verification/$f")" != "0" ]; then
               echo "::error::$f reports $(cat "tests/Unit/TestResults/Verification/$f") failure(s)"
+              echo "::group::Failed services"
+              case "$f" in
+                restore-failures.txt) cat tests/Unit/TestResults/Verification/restore.csv ;;
+                build-failures.txt) cat tests/Unit/TestResults/Verification/build.csv ;;
+                test-failures.txt) cat tests/Unit/TestResults/Verification/tests.csv ;;
+              esac
+              echo "::endgroup::"
               exit 1
             fi
           done
