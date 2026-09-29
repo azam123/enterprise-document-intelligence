@@ -137,7 +137,7 @@ jobs:
           </RunSettings>
           EOF
             echo "===== TEST + COVERAGE: ${name} ====="
-            dotnet test tests/Unit/Unit.csproj --configuration Release --no-build --no-restore --settings "$results/${name}.runsettings" --results-directory "$results" --collect:"XPlat Code Coverage" --logger "trx;LogFileName=${name}.trx"
+            dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore --settings "$results/${name}.runsettings" --results-directory "$results" --collect:"XPlat Code Coverage" --logger "console;verbosity=minimal" --logger "trx;LogFileName=${name}.trx"
             test_status=$?
             report=$(find "$results" -name coverage.cobertura.xml -type f | head -n 1)
             trx="$results/${name}.trx"
