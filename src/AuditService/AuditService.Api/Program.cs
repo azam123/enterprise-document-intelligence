@@ -2,35 +2,23 @@ using EnterpriseDocumentIntelligence.AuditService.Infrastructure;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
-
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.IncludeXmlComments(
-        Path.Combine(
-            AppContext.BaseDirectory,
-            "AuditService.Api.xml"));
+    options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, "AuditService.Api.xml"));
 });
 builder.Services.AddHealthChecks();
-
-builder.Services.AddBuildingBlocks(
-    builder.Configuration,
-    "AuditService");
-
+builder.Services.AddBuildingBlocks(builder.Configuration, "AuditService");
 builder.Services.AddAuditApplication();
-builder.Services.AddHostedService<AuditWorker>();
+builder.Services.AddHostedService<EnterpriseDocumentIntelligence.AuditService.Api.AuditWorker>();
 
 var app = builder.Build();
-
 app.UseSwagger();
 app.UseSwaggerUI();
-
 app.UseHttpsRedirection();
 app.UseBuildingBlocks();
-
 app.MapControllers();
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
-
 app.Run();
