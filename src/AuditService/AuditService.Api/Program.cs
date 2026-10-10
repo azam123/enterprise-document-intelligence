@@ -1,3 +1,4 @@
+using EnterpriseDocumentIntelligence.AuditService.Api;
 using EnterpriseDocumentIntelligence.AuditService.Infrastructure;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
 
