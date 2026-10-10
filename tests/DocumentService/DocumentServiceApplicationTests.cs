@@ -281,6 +281,7 @@ public sealed class DocumentServiceApplicationTests
         using var stream = new MemoryStream("hello"u8.ToArray());
         var file = new FormFile(stream, 0, stream.Length, "file", "notes.txt")
         {
+            Headers = new HeaderDictionary(),
             ContentType = "text/plain"
         };
 
@@ -296,6 +297,7 @@ public sealed class DocumentServiceApplicationTests
         using var stream = new MemoryStream("%PDF-1.7"u8.ToArray());
         var file = new FormFile(stream, 0, stream.Length, "file", "report.pdf")
         {
+            Headers = new HeaderDictionary(),
             ContentType = "application/pdf"
         };
 
@@ -311,6 +313,7 @@ public sealed class DocumentServiceApplicationTests
         using var stream = new MemoryStream("not-a-pdf"u8.ToArray());
         var file = new FormFile(stream, 0, stream.Length, "file", "report.pdf")
         {
+            Headers = new HeaderDictionary(),
             ContentType = "application/pdf"
         };
 
@@ -326,6 +329,7 @@ public sealed class DocumentServiceApplicationTests
         using var stream = new MemoryStream();
         var file = new FormFile(stream, 0, 0, "file", "notes.txt")
         {
+            Headers = new HeaderDictionary(),
             ContentType = "text/plain"
         };
 
