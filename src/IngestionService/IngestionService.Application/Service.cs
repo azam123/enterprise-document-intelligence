@@ -52,6 +52,12 @@ public sealed class IngestionApplication(
 
         if (existing is not null)
         {
+            if (existing.Status is IngestionStatus.Failed)
+            {
+                existing.Start();
+                await store.SaveAsync(existing, cancellationToken);
+            }
+
             return existing;
         }
 
