@@ -1,4 +1,3 @@
-using EnterpriseDocumentIntelligence.SearchService.Infrastructure;
 using Azure;
 using Azure.Identity;
 using Azure.Search.Documents;
@@ -12,9 +11,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 builder.Services.AddHttpClient<AzureOpenAiEmbeddingClient>(
     c => c.Timeout = TimeSpan.FromSeconds(30));
-
 builder.Services.AddBuildingBlocks(builder.Configuration, "SearchService");
-builder.Services.AddSearchApplication();
 
 builder.Services.AddSingleton(sp =>
 {
@@ -28,6 +25,8 @@ builder.Services.AddSingleton(sp =>
         ? new SearchClient(new Uri(endpoint), index, new DefaultAzureCredential())
         : new SearchClient(new Uri(endpoint), index, new AzureKeyCredential(key));
 });
+
+builder.Services.AddScoped<SearchApplication>();
 
 var app = builder.Build();
 

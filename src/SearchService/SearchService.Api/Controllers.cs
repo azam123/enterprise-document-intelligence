@@ -1,4 +1,3 @@
-using EnterpriseDocumentIntelligence.SearchService.Application;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -6,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/v1/search")]
 [Authorize]
 public sealed class SearchController(
-    SearchApplicationService application) : ControllerBase
+    SearchApplication application) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<IReadOnlyList<SearchResult>>> Search(
