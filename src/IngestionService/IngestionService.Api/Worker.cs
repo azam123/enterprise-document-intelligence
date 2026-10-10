@@ -1,3 +1,4 @@
+using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Messaging;
