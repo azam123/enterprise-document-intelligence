@@ -1,3 +1,4 @@
+using EnterpriseDocumentIntelligence.IngestionService.Api;
 using EnterpriseDocumentIntelligence.IngestionService.Infrastructure;
 using Azure.Identity;
 using Azure.Storage.Blobs;
