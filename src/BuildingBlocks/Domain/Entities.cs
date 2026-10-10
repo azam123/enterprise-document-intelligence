@@ -210,14 +210,15 @@ public sealed class DocumentVersion : Entity
             throw new ArgumentOutOfRangeException(nameof(versionNumber));
         }
 
-        if (string.IsNullOrWhiteSpace(blobUri))
-        {
-            throw new ArgumentException("Blob URI is required.", nameof(blobUri));
-        }
+        var hasBlobUri = !string.IsNullOrWhiteSpace(blobUri);
+        var hasHash = !string.IsNullOrWhiteSpace(sha256);
 
-        if (string.IsNullOrWhiteSpace(sha256))
+        // Metadata-only document creation is supported before file bytes are uploaded.
+        // A version must either have both storage metadata values or neither.
+        if (hasBlobUri != hasHash)
         {
-            throw new ArgumentException("SHA-256 hash is required.", nameof(sha256));
+            throw new ArgumentException(
+                "Blob URI and SHA-256 hash must either both be supplied or both be empty.");
         }
 
         if (sizeBytes < 0)
