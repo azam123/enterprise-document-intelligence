@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Xunit;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Domain;
 using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
