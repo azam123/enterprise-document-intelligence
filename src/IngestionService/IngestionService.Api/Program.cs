@@ -1,4 +1,3 @@
-builder.Services.AddIngestionServiceApplication();
 using EnterpriseDocumentIntelligence.IngestionService.Infrastructure;
 using Azure.Identity;
 using Azure.Storage.Blobs;
@@ -6,6 +5,7 @@ using EnterpriseDocumentIntelligence.BuildingBlocks.Infrastructure;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddBuildingBlocks(builder.Configuration, "IngestionService");
+builder.Services.AddIngestionApplication();
 builder.Services.AddHttpClient<DocumentExtractor>(c => c.Timeout = TimeSpan.FromMinutes(5));
 builder.Services.AddSingleton<IDocumentExtractor>(sp => sp.GetRequiredService<DocumentExtractor>());
 builder.Services.AddSingleton(sp =>
