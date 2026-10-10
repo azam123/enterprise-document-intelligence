@@ -1,32 +1,28 @@
 # DocumentService
 
-Document ingestion entry point for the Enterprise Document Intelligence Platform.
+ASP.NET Core API for tenant-scoped document metadata, uploads, version records, ACL management and document lifecycle events.
 
-## Layers
+## Responsibilities
+- Validate file name, content type and size policy.
+- Upload bytes to Azure Blob Storage through `IDocumentStorage`.
+- Persist document/version metadata and current version.
+- Publish document-upload, ACL-change and audit events.
+- Expose health checks and Swagger endpoints.
 
-- Domain — document naming, supported file-type policy, size policy and ACL invariants.
-- Application — document creation/upload/retrieval/ACL use cases and ports.
-- Infrastructure — EF Core repository, Azure Blob Storage adapter and Service Bus event publisher.
-- API — HTTP contracts, authorization, multipart upload validation and dependency injection.
+## API
+- `POST /api/v1/documents` — create a metadata record.
+- `GET /api/v1/documents/{id}` — retrieve a tenant-scoped document.
+- `POST /api/v1/documents/{id}/acl` — add a principal permission.
+- `DELETE /api/v1/documents/{id}/acl/{principalId}?permission=Read` — remove a permission.
 
-## Upload flow
+File upload is implemented by the dedicated `UploadController`; check its route and multipart request contract before integrating clients.
 
-1. Authenticate the caller and resolve tenant context.
-2. Validate filename, content type and size.
-3. Validate the file signature for PDF/DOC/DOCX/TXT.
-4. Upload to tenant-scoped Azure Blob Storage.
-5. Persist the document and version metadata.
-6. Publish DocumentUploaded.
-7. Publish the audit event.
+## Dependencies
+`DocumentService.Application`, `DocumentService.Domain`, `DocumentService.Infrastructure`, `BuildingBlocks`, Azure Blob Storage and SQL Server.
 
-Blob paths are tenant/document/version scoped to prevent cross-tenant collisions.
+## Run
+```bash
+dotnet run --project src/DocumentService/DocumentService.Api/DocumentService.Api.csproj
+```
 
-## Local configuration
-
-Use either Storage:ConnectionString or Storage:BlobServiceUri with DefaultAzureCredential.
-
-The shared BuildingBlocks configuration supplies the database, authentication and Service Bus infrastructure.
-
-## Verification
-
-The repository CI builds the DocumentService project independently and runs the Unit test suite with coverage across the DocumentService API, Application, Domain and Infrastructure assemblies. The service-specific gate requires at least 90% line coverage.
+Configure SQL Server, Blob Storage and Microsoft Entra ID before using authenticated endpoints. Metadata-only creation and binary upload are separate paths; use the upload endpoint when a real file must be stored and processed.

@@ -1,3 +1,10 @@
-# DocumentService Application Layer
+# DocumentService.Application
 
-CQRS commands/queries, DTOs, validators, pipeline behaviors and interfaces live here. Depend on Domain abstractions; do not reference Azure SDKs directly.
+Application orchestration for document metadata, binary upload, tenant-scoped reads and ACL changes.
+
+- `CreateDocumentCommand` — metadata-only creation.
+- `UploadDocumentCommand` — upload bytes and create a storage-backed version.
+- `DocumentServiceApplication` — coordinates validation, repository, storage and event publisher.
+- `IDocumentRepository`, `IDocumentStorage`, `IDocumentEventPublisher` — infrastructure ports.
+
+Keep application logic independent of Azure SDKs. Validate tenant context and metadata before persistence or event publication.
