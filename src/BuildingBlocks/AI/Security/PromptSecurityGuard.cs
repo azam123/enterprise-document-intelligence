@@ -34,7 +34,7 @@ public sealed class PromptSecurityGuard
         if (untrustedText.Length > maxCharacters)
             return PromptInspectionResult.Reject($"Input exceeds the {maxCharacters} character limit.");
 
-        if (untrustedText.Any(char.IsControl) && untrustedText.Any(c => char.IsControl(c) && c is not '\\r' and not '\\n' and not '\\t'))
+        if (untrustedText.Any(char.IsControl) && untrustedText.Any(c => char.IsControl(c) && c is not '\r' and not '\n' and not '\t'))
             return PromptInspectionResult.Reject("Input contains disallowed control characters.");
 
         if (InjectionRegex.IsMatch(untrustedText))
