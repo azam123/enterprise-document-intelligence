@@ -1,0 +1,70 @@
+name: pull-request-quality
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: read
+
+jobs:
+  build-test-coverage:
+    name: Build, tests and coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore and build all source projects
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r project; do
+            echo "==> $project"
+            dotnet restore "$project"
+            dotnet build "$project" --configuration Release --no-restore
+          done < <(find src -name '*.csproj' -type f | sort)
+
+      - name: NuGet vulnerability audit
+        run: dotnet list tests/DocumentService/DocumentService.Tests.csproj package --vulnerable --include-transitive
+
+      - name: Restore test projects
+        run: |
+          dotnet restore tests/Unit/Unit.csproj
+          dotnet restore tests/Integration/Integration.csproj
+          dotnet restore tests/DocumentService/DocumentService.Tests.csproj
+
+      - name: Run unit tests with coverage
+        run: dotnet test tests/Unit/Unit.csproj --configuration Release --no-restore --logger "trx;LogFileName=unit.trx" --collect:"XPlat Code Coverage" --results-directory TestResults/Unit
+
+      - name: Run integration tests with coverage
+        run: dotnet test tests/Integration/Integration.csproj --configuration Release --no-restore --logger "trx;LogFileName=integration.trx" --collect:"XPlat Code Coverage" --results-directory TestResults/Integration
+
+      - name: Run DocumentService tests
+        run: dotnet test tests/DocumentService/DocumentService.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=document-service.trx" --collect:"XPlat Code Coverage" --results-directory TestResults/DocumentService
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-test-and-coverage-reports
+          path: TestResults/
+          if-no-files-found: warn
+          retention-days: 30
+
+  codeql:
+    name: CodeQL security analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3

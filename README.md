@@ -133,6 +133,9 @@ Use Managed Identity / DefaultAzureCredential in Azure where possible. Placehold
 - [HLD, data model, APIs, capacity and monitoring](docs/02-hld-data-api-capacity-monitoring.md)
 - [Installation and Azure deployment](docs/03-installation-setup-azure-deployment.md)
 - [Codebase and testing](docs/04-codebase-and-testing.md)
+- [Secure RAG, prompt engineering and Agentic AI harness](docs/06-secure-rag-agentic-ai.md)
+- [Test strategy, CI quality gates and test report](docs/07-testing-and-quality-gates.md)
+- [Secure Agentic AI implementation report](docs/08-secure-agentic-ai-implementation-report.md)
 - [Implemented service code notes](docs/05-implemented-service-code.md)
 
 ## License

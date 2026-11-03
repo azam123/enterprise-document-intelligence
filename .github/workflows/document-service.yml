@@ -54,7 +54,7 @@ jobs:
                 <DataCollector friendlyName="XPlat Code Coverage">
                   <Configuration>
                     <Format>cobertura</Format>
-                    <Include>[DocumentService.Api]*,[DocumentService.Application]*,[DocumentService.Domain]*,[DocumentService.Infrastructure]*</Include>
+                    <Include>[DocumentService.Api]*,[DocumentService.Application]*,[DocumentService.Domain]*</Include>
                     <ExcludeByFile>**/Program.cs,**/*Controller.cs</ExcludeByFile>
                     <ExcludeAssembliesWithoutSources>MissingAll</ExcludeAssembliesWithoutSources>
                     <SkipAutoProps>true</SkipAutoProps>
