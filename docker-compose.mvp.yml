@@ -31,7 +31,7 @@ services:
     image: ollama/ollama:latest
     depends_on: [ollama]
     entrypoint: ["/bin/sh", "-c"]
-    command: ["until ollama -H http://ollama:11434 list >/dev/null 2>&1; do sleep 2; done; ollama -H http://ollama:11434 pull qwen2.5:3b && ollama -H http://ollama:11434 pull nomic-embed-text"]
+    command: ["until OLLAMA_HOST=http://ollama:11434 ollama list >/dev/null 2>&1; do sleep 2; done; OLLAMA_HOST=http://ollama:11434 ollama pull qwen2.5:3b && OLLAMA_HOST=http://ollama:11434 ollama pull nomic-embed-text"]
     restart: "no"
   ai-service:
     build: ./mvp/ai-service
