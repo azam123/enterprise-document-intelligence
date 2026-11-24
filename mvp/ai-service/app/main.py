@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 import httpx, psycopg
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from app.core import build_grounded_prompt, chunk_text, extract_document
 
@@ -59,6 +60,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app=FastAPI(title="Private Enterprise Document Intelligence API",version="0.1.0",lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS","http://localhost:3000").split(","), allow_credentials=False, allow_methods=["GET","POST"], allow_headers=["Content-Type","X-Tenant-Id"])
 
 class AskRequest(BaseModel):
     question: str=Field(min_length=3,max_length=2000)
@@ -70,7 +72,8 @@ def health():
 @app.post("/documents")
 async def upload_document(file: UploadFile=File(...),x_tenant_id: str=Header(...,alias="X-Tenant-Id")):
     if not x_tenant_id.strip() or len(x_tenant_id)>128: raise HTTPException(400,"Invalid tenant ID")
-    raw=await file.read()
+    raw=await file.read(20 * 1024 * 1024 + 1)
+    if len(raw) > 20 * 1024 * 1024: raise HTTPException(413,"File exceeds the 20 MB MVP upload limit")
     try: pages=extract_document(file.filename or "",raw)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
     if not pages: raise HTTPException(422,"No extractable text found")
@@ -86,7 +89,11 @@ async def upload_document(file: UploadFile=File(...),x_tenant_id: str=Header(...
                 VALUES(%s,%s,%s,%s,%s,%s,%s::vector)""",
                 [(r[0],doc_id,x_tenant_id,file.filename or "document",r[1],r[2],"["+",".join(map(str,r[3]))+"]") for r in records])
             conn.commit()
-        await publish({"type":"document.indexed","tenant_id":x_tenant_id,"document_id":str(doc_id)})
+        try:
+            await publish({"type":"document.indexed","tenant_id":x_tenant_id,"document_id":str(doc_id)})
+        except Exception:
+            # MVP keeps indexing successful if Kafka is temporarily unavailable; use a transactional outbox in production.
+            pass
     except (httpx.HTTPError,psycopg.Error,RuntimeError) as exc:
         raise HTTPException(503,f"Document processing failed: {type(exc).__name__}") from exc
     return {"document_id":str(doc_id),"filename":file.filename,"chunks_indexed":len(records),"status":"indexed"}
