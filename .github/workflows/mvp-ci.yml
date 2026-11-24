@@ -1,0 +1,56 @@
+name: Private AI MVP CI
+on:
+  push:
+    branches: [main, "feature/**"]
+    paths: ["mvp/**", "docker-compose.mvp.yml", ".github/workflows/mvp-ci.yml"]
+  pull_request:
+    paths: ["mvp/**", "docker-compose.mvp.yml", ".github/workflows/mvp-ci.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  python-tests:
+    name: AI service tests and coverage
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: mvp/ai-service }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: mvp/ai-service/requirements.txt }
+      - run: pip install -r requirements.txt
+      - run: pytest -q --cov=app.core --cov-report=term-missing --cov-report=xml:coverage.xml --junitxml=test-results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-test-and-coverage
+          path: |
+            mvp/ai-service/coverage.xml
+            mvp/ai-service/test-results.xml
+  dotnet-build:
+    name: .NET 10 gateway build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "10.0.x" }
+      - run: dotnet restore mvp/dotnet-gateway/Gateway.csproj
+      - run: dotnet build mvp/dotnet-gateway/Gateway.csproj --configuration Release --no-restore
+  frontend-build:
+    name: Next.js frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: mvp/web }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: mvp/web/package.json }
+      - run: npm install
+      - run: npm run build
+  docker-compose-validation:
+    name: Compose configuration validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - run: docker compose -f docker-compose.mvp.yml config --quiet
