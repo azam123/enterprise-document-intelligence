@@ -36,3 +36,22 @@ def test_grounded_prompt_cites_source_and_treats_document_as_untrusted():
 
 def test_grounded_prompt_without_evidence():
     assert "No matching evidence" in build_grounded_prompt("Question?", [])
+
+def test_extract_docx_document():
+    import io
+    from docx import Document
+    document = Document()
+    document.add_paragraph("Confidentiality lasts for five years.")
+    buffer = io.BytesIO()
+    document.save(buffer)
+    pages = extract_document("agreement.docx", buffer.getvalue())
+    assert pages == [{"page": 1, "text": "Confidentiality lasts for five years."}]
+
+def test_extract_pdf_with_no_text_returns_empty_pages():
+    import io
+    from pypdf import PdfWriter
+    writer = PdfWriter()
+    writer.add_blank_page(width=300, height=300)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    assert extract_document("blank.pdf", buffer.getvalue()) == []
